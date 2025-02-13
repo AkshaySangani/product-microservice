@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import sendApiResponse from "../../common";
-import { TagsModel } from "../../database/model";
+import { CategoryModel, TagsModel } from "../../database/model";
 
 const addTags = async (req: Request, res: Response) => {
     try {
@@ -8,8 +8,11 @@ const addTags = async (req: Request, res: Response) => {
         if (!name) return sendApiResponse(res, 400, "Name is required");
         if (!categoryId) return sendApiResponse(res, 400, "Category is required");
 
+        const categoryExists = await CategoryModel.findById(categoryId);
+        if(!categoryExists) return sendApiResponse(res, 400, "Category not found");
+
         const isExists = await TagsModel.findOne({ name, category: categoryId });
-        if (isExists) return sendApiResponse(res, 400, "Tags already exists");
+        if (isExists) return sendApiResponse(res, 400, "Tags already exists for category");
 
         const tag = await TagsModel.create({ name, category: categoryId });
         return sendApiResponse(res, 201, "Tags added successfully", tag);
