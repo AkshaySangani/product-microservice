@@ -17,15 +17,14 @@ const ProductSchema = new Schema(
     description: {
       type: String,
     },
-    account: {
-      type: Schema.Types.ObjectId,
-      ref: "Account",
-      required: true,
-    },
     category: {
       type: Schema.Types.ObjectId,
       ref: "Category",
       required: true,
+    },
+    tags:{
+      type: [String],
+      default: [],
     }
   },
   { versionKey: false, timestamps: true }

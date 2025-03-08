@@ -10,6 +10,11 @@ const CategorySchema = new Schema(
     required: true,
     unique: true,
    },
+    parentId: {
+      type: Schema.Types.ObjectId,
+      ref: "Category",
+      default: null,
+    },
   },
   { versionKey: false, timestamps: true }
 );

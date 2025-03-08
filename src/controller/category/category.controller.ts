@@ -4,13 +4,13 @@ import { CategoryModel } from "../../database/model";
 
 const addCategory = async (req: Request, res: Response) => {
     try {
-        const { name } = req.body;
+        const { name, parentId } = req.body;
         if (!name) return sendApiResponse(res, 400, "Name is required");
 
-        const isExists = await CategoryModel.findOne({ name });
+        const isExists = await CategoryModel.findOne({ name, parentId });
         if (isExists) return sendApiResponse(res, 400, "Category already exists");
 
-        const category = await CategoryModel.create({ name });
+        const category = await CategoryModel.create({ name, parentId });
         return sendApiResponse(res, 201, "Category added successfully", category);
     } catch (error) {
         console.error("error while add category", error);
