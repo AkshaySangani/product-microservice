@@ -1,9 +1,3 @@
-export * from './product';
-export * from './category';
-export * from './tags';
-export * from './vendorProduct';
-export * from './creatorProduct';
-
 import mongoose from "mongoose";
 import ProductSchema from "../../../../shared-models/src/models/product";
 import CategorySchema from "../../../../shared-models/src/models/category";
