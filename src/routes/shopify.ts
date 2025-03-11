@@ -7,4 +7,4 @@ router.post('/connect', connectShopifyStore); // connect shopify store
 
 router.post('/list', getShopifyProductList); // get category list
 
-export { router as shopifyRouter };
+export { router as shopifyRouter }; 
