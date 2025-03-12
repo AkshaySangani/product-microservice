@@ -27,8 +27,11 @@ const getCategoryList = async (req: Request, res: Response) => {
 
         const skip = (pageNumber - 1) * limitNumber;
 
-        const list = await CategoryModel.find({ parentId: parentId }).skip(skip).limit(limitNumber);
-        const count = await CategoryModel.countDocuments({ parentId: parentId });
+        let condition = {}
+        if(parentId) condition = { parentId }
+
+        const list = await CategoryModel.find(condition).skip(skip).limit(limitNumber);
+        const count = await CategoryModel.countDocuments(condition);
         return sendApiResponse(res, 200, "Category list fetched successfully", { data: list, count: count });
     } catch (error) {
         console.error("error while get category list", error);
