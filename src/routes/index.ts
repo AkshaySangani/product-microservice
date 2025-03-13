@@ -2,7 +2,9 @@ import { Router } from 'express';
 import { tagsRouter } from './tags';
 import { categoryRouter } from './category';
 import { productRouter } from './product';
-import { shopifyRouter } from './shopify';
+import { creatorProductRouter } from './creatorProduct';
+import { brandProductRouter } from './brandProduct';
+
 const router = Router()
 
 router.use('/', productRouter)
@@ -11,6 +13,8 @@ router.use('/category', categoryRouter)
 
 router.use('/tags', tagsRouter)
 
-router.use('/shopify', shopifyRouter)
+router.use('/creator-product', creatorProductRouter)
+
+router.use('/brand-product', brandProductRouter)
 
 export { router }
