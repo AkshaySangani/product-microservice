@@ -15,6 +15,6 @@ router.use('/tags', tagsRouter)
 
 router.use('/creator-product', creatorProductRouter)
 
-router.use('/brand-product', brandProductRouter)
+router.use('/vendor-product', brandProductRouter)
 
 export { router }

@@ -6,6 +6,7 @@ import VendorProductSchema from "../../../../shared-models/src/models/vendorProd
 import CreatorProductSchema from "../../../../shared-models/src/models/creatorProduct";
 import CreatorSchema from "../../../../shared-models/src/models/creator";
 import VendorSchema from "../../../../shared-models/src/models/vendor";
+import AccountSchema from "../../../../shared-models/src/models/account";
 
 const ProductModel = mongoose.model("Product", ProductSchema);
 const CategoryModel = mongoose.model("Category", CategorySchema);
@@ -14,5 +15,6 @@ const VendorProductModel = mongoose.model("VendorProduct", VendorProductSchema);
 const CreatorProductModel = mongoose.model("CreatorProduct", CreatorProductSchema);
 const VendorModel = mongoose.model("Vendor", VendorSchema);
 const CreatorModel = mongoose.model("Creator", CreatorSchema);
+const AccountModel = mongoose.model("Account", AccountSchema);
 
-export { ProductModel, CategoryModel, TagsModel, VendorProductModel, CreatorProductModel, VendorModel, CreatorModel};
+export { ProductModel, CategoryModel, TagsModel, VendorProductModel, CreatorProductModel, VendorModel, CreatorModel, AccountModel};
