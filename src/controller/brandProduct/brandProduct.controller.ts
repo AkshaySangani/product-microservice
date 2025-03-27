@@ -65,6 +65,26 @@ const productListByBrand = async (req: Request, res: Response) => {
     }
 }
 
+const brandProductList = async (req: AuthRequest, res: Response) => {
+    const { _id: brandId } = req.user;
+    try {
+        const { page = 1, limit = 10 } = req.query;
+        const pageNumber = Number(page);
+        const limitNumber = Number(limit);
+        const skip = (pageNumber - 1) * limitNumber;
+
+        const brand = await VendorModel.findById(brandId);
+        if (!brand) {
+            return sendApiResponse(res, 404, "Brand not found");
+        }
+        const list = await VendorProductModel.find({ vendorId: brandId }).skip(skip).limit(limitNumber).populate("productId");
+        const count = await VendorProductModel.countDocuments({ vendorId: brandId });
+        return sendApiResponse(res, 200, "Product list fetched successfully", { data: list, count: count });
+    } catch (error) {
+        console.error("error while get product list by brand", error);
+        return sendApiResponse(res, 500, "Internal server error");
+    }
+}
 
 const addNewProduct = async (req: AuthRequest, res: Response) => {
     const { _id: vendorId } = req.user; // Extract vendor ID from authenticated user
@@ -155,4 +175,4 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
     }
 };
 
-export { getBrandList, productListByBrand, addNewProduct };
+export { getBrandList, productListByBrand, addNewProduct, brandProductList };
