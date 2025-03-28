@@ -56,7 +56,13 @@ const productListByBrand = async (req: Request, res: Response) => {
         if (!brand) {
             return sendApiResponse(res, 404, "Brand not found");
         }
-        const list = await VendorProductModel.find({ vendorId: brandId }).skip(skip).limit(limitNumber).populate("productId");
+        const list = await VendorProductModel.find({ vendorId: brandId })
+        .skip(skip)
+        .limit(limitNumber)
+        .populate({
+            path: "productId",
+            populate: { path: "category" } // Populate category inside productId
+        });
         const count = await VendorProductModel.countDocuments({ vendorId: brandId });
         return sendApiResponse(res, 200, "Product list fetched successfully", { data: list, count: count });
     } catch (error) {
@@ -77,7 +83,13 @@ const brandProductList = async (req: AuthRequest, res: Response) => {
         if (!brand) {
             return sendApiResponse(res, 404, "Brand not found");
         }
-        const list = await VendorProductModel.find({ vendorId: brandId }).skip(skip).limit(limitNumber).populate("productId");
+        const list = await VendorProductModel.find({ vendorId: brandId })
+        .skip(skip)
+        .limit(limitNumber)
+        .populate({
+            path: "productId",
+            populate: { path: "category" } // Populate category inside productId
+        });
         const count = await VendorProductModel.countDocuments({ vendorId: brandId });
         return sendApiResponse(res, 200, "Product list fetched successfully", { data: list, count: count });
     } catch (error) {

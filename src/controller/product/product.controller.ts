@@ -45,7 +45,7 @@ const getProductList = async (req: Request, res: Response) => {
         }
 
         // Fetch filtered product list
-        const list = await ProductModel.find(productFilter).skip(skip).limit(limitNumber);
+        const list = await ProductModel.find(productFilter).skip(skip).limit(limitNumber).populate('category');
         const count = await ProductModel.countDocuments(productFilter);
 
         return sendApiResponse(res, 200, "Product list fetched successfully", { data: list, count });
@@ -58,7 +58,9 @@ const getProductList = async (req: Request, res: Response) => {
 const getProductById = async (req: Request, res: Response) => {
     try {
         const { productId } = req.params;
-        const product = await ProductModel.findById(productId);
+        const product = await ProductModel.findById(productId).populate({
+            path: "category",
+        });
         if (!product) {
             return sendApiResponse(res, 404, "Product not found");
         }
