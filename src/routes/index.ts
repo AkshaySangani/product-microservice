@@ -4,6 +4,8 @@ import { categoryRouter } from './category';
 import { productRouter } from './product';
 import { creatorProductRouter } from './creatorProduct';
 import { brandProductRouter } from './brandProduct';
+import { collaborationRouter } from './collabration';
+import { utmRouter } from './utm';
 
 const router = Router()
 
@@ -16,5 +18,9 @@ router.use('/tags', tagsRouter)
 router.use('/creator-product', creatorProductRouter)
 
 router.use('/vendor-product', brandProductRouter)
+
+router.use('/collaboration', collaborationRouter)
+
+router.use('/utm', utmRouter)
 
 export { router }
