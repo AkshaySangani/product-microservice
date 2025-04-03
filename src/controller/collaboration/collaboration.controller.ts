@@ -1,19 +1,22 @@
 import { Response } from "express";
 import sendApiResponse from "../../common";
 import { AuthRequest } from "../../types/authRequest";
-import { ChannelModel, VendorProductModel, CollaborationModel } from "../../database/model";
+import { ChannelModel, VendorProductModel, CollaborationModel, CreatorModel } from "../../database/model";
+import axios from "axios";
+import { BACKEND_URL } from "../../config";
+import { sendNotification } from "../../common/sendNotification";
 
 const creatorCollaborationRequest = async (req: AuthRequest, res: Response) => {
     try {
         const { productId, creatorId, vendorId, discountType, discountValue, couponCode, expiresAt } = req.body;
 
         // Validate required fields
-        if (!productId || !discountType || !discountValue || !couponCode || !expiresAt || creatorId || vendorId) {
+        if (!productId || !discountType || !discountValue || !couponCode || !expiresAt || !creatorId || !vendorId) {
             return sendApiResponse(res, 400, "Missing required fields");
         }
 
         // Find vendor associated with this product
-        const vendorProduct = await VendorProductModel.findOne({ productId, vendorId });
+        const vendorProduct: any = await VendorProductModel.findOne({ productId, vendorId }).populate('productId');
 
         if (!vendorProduct) {
             return sendApiResponse(res, 404, "Vendor not found for this product");
@@ -42,6 +45,9 @@ const creatorCollaborationRequest = async (req: AuthRequest, res: Response) => {
             return sendApiResponse(res, 200, "Collaboration already exists", { data: existingCollaboration });
         }
 
+         // Fetch creator and vendor details
+         const creator = await CreatorModel.findById(creatorId);
+
         // Create a new collaboration request
         const newCollaboration = new CollaborationModel({
             creatorId,
@@ -55,6 +61,7 @@ const creatorCollaborationRequest = async (req: AuthRequest, res: Response) => {
         });
 
         await newCollaboration.save();
+        await sendNotification(req,[vendorId],`New collaboration request from ${creator?.full_name} for product ${vendorProduct.productId?.title}`)
 
         return sendApiResponse(res, 201, "Collaboration request sent successfully", { newCollaboration });
 
