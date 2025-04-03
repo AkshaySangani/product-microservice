@@ -1,10 +1,11 @@
 import { Request, Response } from "express";
 import sendApiResponse from "../../common";
-import { ProductModel } from "../../database/model";
+import { CollaborationModel, ProductModel } from "../../database/model";
 import { VendorProductModel } from "../../database/model";
 import { CreatorProductModel } from "../../database/model";
+import { AuthRequest } from "../../types/authRequest";
 
-const getProductList = async (req: Request, res: Response) => {
+const getProductList = async (req: AuthRequest, res: Response) => {
     try {
         const { page = 1, limit = 10, vendorId, creatorId, categories, tags } = req.query;
         const pageNumber = Number(page);
@@ -45,10 +46,33 @@ const getProductList = async (req: Request, res: Response) => {
         }
 
         // Fetch filtered product list
-        const list = await ProductModel.find(productFilter).skip(skip).limit(limitNumber).populate('category');
+        const list = await ProductModel.find(productFilter)
+            .skip(skip)
+            .limit(limitNumber)
+            .populate('category')
+            .lean(); // Convert to plain JavaScript objects
+
+        // Fetch collaboration status for each product for the logged-in creator
+        const productsWithCollaboration = await Promise.all(
+            list.map(async (product) => {
+                const collaboration = await CollaborationModel.findOne({
+                    productId: product._id,
+                    creatorId: req.user._id, // Assuming logged-in user's creatorId is available in req.user
+                }).select('collaborationStatus');
+
+                return {
+                    ...product,
+                    collaborationStatus: collaboration ? collaboration.collaborationStatus : null
+                };
+            })
+        );
+
         const count = await ProductModel.countDocuments(productFilter);
 
-        return sendApiResponse(res, 200, "Product list fetched successfully", { data: list, count });
+        return sendApiResponse(res, 200, "Product list fetched successfully", { 
+            data: productsWithCollaboration, 
+            count 
+        });
     } catch (error) {
         console.error("Error while fetching product list", error);
         return sendApiResponse(res, 500, "Internal server error");

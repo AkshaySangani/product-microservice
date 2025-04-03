@@ -7,4 +7,5 @@ type CreatorType = Document & typeof CreatorModel.prototype;
 
 export interface AuthRequest extends Request {
     user?: VendorType | CreatorType;
+    userRole?: string;
 }
