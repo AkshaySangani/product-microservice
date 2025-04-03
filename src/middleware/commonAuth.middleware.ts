@@ -28,6 +28,7 @@ export const commonAuthMiddleware = async (req: AuthRequest, res: Response, next
 
         // Find the account by ID
         const account = await AccountModel.findById(decoded._id);
+        
         if (!account) {
             return sendApiResponse(res, 401, "Invalid credentials");
         }
