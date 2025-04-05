@@ -2,7 +2,6 @@ import { Response } from "express";
 import sendApiResponse from "../../common";
 import { ChannelModel, CollaborationModel, CreatorModel, VendorProductModel } from "../../database/model";
 import { AuthRequest } from "../../types/authRequest";
-import axios from "axios";
 import { BACKEND_URL } from "../../config";
 
 /**
@@ -12,11 +11,15 @@ import { BACKEND_URL } from "../../config";
  */
 export const createUTM = async (req: AuthRequest, res: Response) => {
     try {
-        const { collaborationId } = req.body;
+        const { collaborationId, discountType, discountValue, couponCode, commissionPercentage, expiresAt } = req.body;
         const { _id: vendorId } = req.user;
 
         if (!collaborationId) {
             return sendApiResponse(res, 400, "Collaboration ID is required");
+        }
+
+        if (!discountType || !discountValue || !couponCode || !commissionPercentage || !expiresAt) {
+            return sendApiResponse(res, 400, "All fields are required");
         }
 
         // Find the collaboration
@@ -62,11 +65,11 @@ export const createUTM = async (req: AuthRequest, res: Response) => {
                 },
                 body: JSON.stringify({
                     id: vendorProduct.productId,
-                    discount_type: collaboration.discountType,
-                    discount_value: collaboration.discountValue,
-                    coupon_code: collaboration.couponCode,
-                    commission_percentage: collaboration.commissionPercentage,
-                    expires_at: collaboration.expiresAt,
+                    discount_type: discountType,
+                    discount_value: discountValue,
+                    coupon_code: couponCode,
+                    commission_percentage: commissionPercentage,
+                    expires_at: expiresAt,
                     product_id: vendorProduct.productId.channelProductId,
                     creator_id: collaboration.creatorId,
                     creator_name: creator?.full_name,
@@ -79,7 +82,7 @@ export const createUTM = async (req: AuthRequest, res: Response) => {
             // Check if the response is ok (status in the range 200-299)
             if (!response.ok) {
                 const errorData = await response.json(); // Parse the error response
-                return sendApiResponse(res, response.status, errorData.message || "Error generating UTM link");
+                return sendApiResponse(res, response.status, errorData.message || errorData.response.data || "Error generating UTM link");
             }
 
             console.log("response", response);
@@ -96,7 +99,7 @@ export const createUTM = async (req: AuthRequest, res: Response) => {
         }
 
     } catch (error: any) {
-        console.error("Error generating UTM link:", error);
+        console.error("Error generating UTM link:", error, error.message);
         return sendApiResponse(res, 500, "Internal server error", { error: error.message });
     }
 };

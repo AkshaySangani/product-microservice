@@ -8,10 +8,10 @@ import { sendNotification } from "../../common/sendNotification";
 
 const creatorCollaborationRequest = async (req: AuthRequest, res: Response) => {
     try {
-        const { productId, creatorId, vendorId, discountType, discountValue, couponCode, expiresAt } = req.body;
+        const { productId, creatorId, vendorId } = req.body;
 
         // Validate required fields
-        if (!productId || !discountType || !discountValue || !couponCode || !expiresAt || !creatorId || !vendorId) {
+        if (!productId || !creatorId || !vendorId) {
             return sendApiResponse(res, 400, "Missing required fields");
         }
 
@@ -53,10 +53,10 @@ const creatorCollaborationRequest = async (req: AuthRequest, res: Response) => {
             creatorId,
             vendorId,
             productId,
-            discountType,
-            discountValue,
-            couponCode,
-            expiresAt,
+            discountType : "PERCENTAGE",
+            discountValue : 0,
+            couponCode : "",
+            expiresAt : new Date(),
             collaborationStatus: "REQUESTED", // Default status: REQUESTED for vendor approval
         });
 
