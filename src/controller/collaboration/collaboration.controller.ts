@@ -1,7 +1,7 @@
 import { Response } from "express";
 import sendApiResponse from "../../common";
 import { AuthRequest } from "../../types/authRequest";
-import { ChannelModel, VendorProductModel, CollaborationModel, CreatorModel } from "../../database/model";
+import { ChannelModel, VendorProductModel, CollaborationModel, CreatorModel, ProductModel } from "../../database/model";
 import axios from "axios";
 import { BACKEND_URL } from "../../config";
 import { sendNotification } from "../../common/sendNotification";
@@ -92,6 +92,7 @@ const getCollaborationList = async (req: AuthRequest, res: Response) => {
         // Fetch collaborations with pagination and populate related product data
         const collaborations = await CollaborationModel.find(condition)
             .populate('productId') // Populate product details
+            .populate(userRole === 'vendor' ? 'creatorId' : 'vendorId') // Conditionally populate based on userRole
             .skip(skip) // Apply pagination offset
             .limit(limit) // Limit the number of results
             .sort({ createdAt: -1 }); // Sort by newest first
@@ -111,5 +112,85 @@ const getCollaborationList = async (req: AuthRequest, res: Response) => {
     }
 };
 
+const requestStatusChange = async (req: AuthRequest, res: Response) => {
+    // Extract collaborationId and status (accepted/rejected) from request body
+    const { collaborationId, status } = req.body;
+    const { _id } = req.user; // Logged-in user's ID
 
-export { creatorCollaborationRequest, getCollaborationList };
+    try {
+        // Fetch the collaboration by its ID
+        const collaboration: any = await CollaborationModel.findById(collaborationId);
+        if (!collaboration) {
+            return sendApiResponse(res, 404, "Collaboration not found");
+        }
+
+        // Optional: Authorization check to ensure only the relevant vendor can update status
+        // Uncomment this block if required
+        // if (collaboration.vendorId !== _id) {
+        //     return sendApiResponse(res, 403, "Unauthorized to update this collaboration");
+        // }
+
+        // Update the status to ACCEPTED
+        if (status === "accepted") {
+            collaboration.collaborationStatus = "PENDING";
+            await collaboration.save();
+        }
+
+        // Update the status to REJECTED
+        if (status === "rejected") {
+            collaboration.collaborationStatus = "REJECTED";
+            await collaboration.save();
+        }
+
+        // Send success response
+        return sendApiResponse(res, 200, "Collaboration status updated successfully", { collaboration });
+    } catch (error: any) {
+        console.error("Collaboration status update error:", error);
+        return sendApiResponse(res, 500, "Internal server error", { error: error.message });
+    }
+}
+
+const getCollaborationStatusByProduct = async (req: AuthRequest, res: Response) => {
+    const { productId } = req.params; // Extract product ID from URL parameters
+    const { _id } = req.user; // Get logged-in user's ID
+    const userRole = req.userRole; // Get logged-in user's role (creator or vendor)
+
+    try {
+
+        const product = await ProductModel.findById(productId);
+        if (!product) {
+            return sendApiResponse(res, 404, "Product not found");
+        }
+
+        // If the user is a creator, check for a collaboration where they are the creator
+        if (userRole === "creator") {
+            const collaboration = await CollaborationModel.findOne({ creatorId: _id, productId });
+
+            return sendApiResponse(res, 200, "Collaboration status fetched successfully", {
+                collaboration,
+            });
+        }
+
+        // If the user is a vendor, check for a collaboration where they are the vendor
+        else if (userRole === "vendor") {
+            const collaboration = await CollaborationModel.findOne({ vendorId: _id, productId });
+
+            return sendApiResponse(res, 200, "Collaboration status fetched successfully", {
+                collaboration,
+            });
+        }
+
+        // If userRole is neither creator nor vendor (unexpected), you might want to handle this too
+        else {
+            return sendApiResponse(res, 403, "Unauthorized role");
+        }
+    } catch (error: any) {
+        console.error("Collaboration status fetch error:", error);
+
+        return sendApiResponse(res, 500, "Internal server error", {
+            error: error.message,
+        });
+    }
+};
+
+export { creatorCollaborationRequest, getCollaborationList, requestStatusChange, getCollaborationStatusByProduct };
