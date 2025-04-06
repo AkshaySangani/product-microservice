@@ -55,7 +55,7 @@ const creatorCollaborationRequest = async (req: AuthRequest, res: Response) => {
             productId,
             discountType : "PERCENTAGE",
             discountValue : 0,
-            couponCode : "",
+            couponCode : "ABCD",
             expiresAt : new Date(),
             collaborationStatus: "REQUESTED", // Default status: REQUESTED for vendor approval
         });
