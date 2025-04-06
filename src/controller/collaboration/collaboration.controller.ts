@@ -159,6 +159,7 @@ const getCollaborationStatusByProduct = async (req: AuthRequest, res: Response) 
     const { productId } = req.params; // Extract product ID from URL parameters
     const { _id } = req.user; // Get logged-in user's ID
     const userRole = req.userRole; // Get logged-in user's role (creator or vendor)
+    const { creatorId } = req.query;
 
     try {
 
@@ -178,7 +179,10 @@ const getCollaborationStatusByProduct = async (req: AuthRequest, res: Response) 
 
         // If the user is a vendor, check for a collaboration where they are the vendor
         else if (userRole === "vendor") {
-            const collaboration = await CollaborationModel.findOne({ vendorId: _id, productId });
+            if (!creatorId) {
+                return sendApiResponse(res, 400, "Creator id missing");
+            }
+            const collaboration = await CollaborationModel.findOne({ vendorId: _id, productId, creatorId });
 
             return sendApiResponse(res, 200, "Collaboration status fetched successfully", {
                 collaboration,
