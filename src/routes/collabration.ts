@@ -6,6 +6,8 @@ const router = Router();
 
 router.post('/creator/request', commonAuthMiddleware, collaborationController.creatorCollaborationRequest); // creator request for collaboration
 
+router.delete('/request/cancel/:collaborationId', commonAuthMiddleware, collaborationController.cancelCollaborationRequest); // cancel collaboration request
+
 router.put('/request/status', commonAuthMiddleware, collaborationController.requestStatusChange);// accept reject collaboration request
 
 router.get('/list', commonAuthMiddleware, collaborationController.getCollaborationList); // get creator/vendor wise collaboration list

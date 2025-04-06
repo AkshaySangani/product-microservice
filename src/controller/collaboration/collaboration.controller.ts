@@ -45,23 +45,23 @@ const creatorCollaborationRequest = async (req: AuthRequest, res: Response) => {
             return sendApiResponse(res, 200, "Collaboration already exists", { data: existingCollaboration });
         }
 
-         // Fetch creator and vendor details
-         const creator = await CreatorModel.findById(creatorId);
+        // Fetch creator and vendor details
+        const creator = await CreatorModel.findById(creatorId);
 
         // Create a new collaboration request
         const newCollaboration = new CollaborationModel({
             creatorId,
             vendorId,
             productId,
-            discountType : "PERCENTAGE",
-            discountValue : 0,
-            couponCode : "ABCD",
-            expiresAt : new Date(),
+            discountType: "PERCENTAGE",
+            discountValue: 0,
+            couponCode: "ABCD",
+            expiresAt: new Date(),
             collaborationStatus: "REQUESTED", // Default status: REQUESTED for vendor approval
         });
 
         await newCollaboration.save();
-        await sendNotification(req,[vendorId],`New collaboration request from ${creator?.full_name} for product ${vendorProduct.productId?.title}`)
+        await sendNotification(req, [vendorId], `New collaboration request from ${creator?.full_name} for product ${vendorProduct.productId?.title}`)
 
         return sendApiResponse(res, 201, "Collaboration request sent successfully", { newCollaboration });
 
@@ -193,4 +193,29 @@ const getCollaborationStatusByProduct = async (req: AuthRequest, res: Response) 
     }
 };
 
-export { creatorCollaborationRequest, getCollaborationList, requestStatusChange, getCollaborationStatusByProduct };
+const cancelCollaborationRequest = async (req: AuthRequest, res: Response) => {
+    const { collaborationId } = req.params; // Product ID must be provided in the request body
+
+    try {
+        if (!collaborationId) {
+            return sendApiResponse(res, 400, "Missing collaboration id in request");
+        }
+
+        // Match collaboration 
+        const collaboration = await CollaborationModel.findById(collaborationId)
+
+        if (!collaboration) {
+            return sendApiResponse(res, 404, "Collaboration not found.");
+        }
+
+        // Delete the collaboration
+        await CollaborationModel.findByIdAndDelete(collaboration._id);
+
+        return sendApiResponse(res, 200, "Collaboration request cancelled successfully");
+    } catch (error: any) {
+        console.error("Cancel collaboration request error:", error);
+        return sendApiResponse(res, 500, "Internal server error", { error: error.message });
+    }
+};
+
+export { creatorCollaborationRequest, getCollaborationList, requestStatusChange, getCollaborationStatusByProduct, cancelCollaborationRequest };
