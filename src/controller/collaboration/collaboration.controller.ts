@@ -91,7 +91,12 @@ const getCollaborationList = async (req: AuthRequest, res: Response) => {
 
         // Fetch collaborations with pagination and populate related product data
         const collaborations = await CollaborationModel.find(condition)
-            .populate('productId') // Populate product details
+            .populate({
+                path: 'productId',
+                populate: {
+                    path: 'category'
+                }
+            }) // Populate product details with category
             .populate(userRole === 'vendor' ? 'creatorId' : 'vendorId') // Conditionally populate based on userRole
             .skip(skip) // Apply pagination offset
             .limit(limit) // Limit the number of results
