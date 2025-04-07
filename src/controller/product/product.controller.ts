@@ -6,7 +6,7 @@ import { CreatorProductModel } from "../../database/model";
 
 const getProductList = async (req: Request, res: Response) => {
     try {
-        const { page = 1, limit = 10, vendorId, creatorId, categories, tags } = req.query;
+        const { page = 1, limit = 10, vendorId, creatorId, categories, search } = req.query;
         const pageNumber = Number(page);
         const limitNumber = Number(limit);
         const skip = (pageNumber - 1) * limitNumber;
@@ -38,10 +38,11 @@ const getProductList = async (req: Request, res: Response) => {
             productFilter.categories = { $in: categoryArray };
         }
 
-        // Apply tags filter (supporting multiple tags)
-        if (tags) {
-            const tagsArray = Array.isArray(tags) ? tags : [tags];
-            productFilter.tags = { $all: tagsArray };
+        if(search){
+            productFilter.$or = [
+                { title: { $regex: search, $options: 'i' } },
+                { tags: { $in: [new RegExp(search as string, 'i')] } } // Match any tag using regex
+            ];
         }
 
         // Fetch filtered product list with vendor information

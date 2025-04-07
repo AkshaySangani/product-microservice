@@ -6,15 +6,23 @@ import { BACKEND_URL } from "../../config";
 
 const getBrandList = async (req: Request, res: Response) => {
     try {
-        const { page = 1, limit = 10 } = req.query;
+        const { page = 1, limit = 10, search } = req.query;
         const pageNumber = Number(page);
         const limitNumber = Number(limit);
         const skip = (pageNumber - 1) * limitNumber;
 
-        // Aggregation to fetch brands along with product counts
+        // Build filter for business_name
+        let matchFilter: any = {};
+        if (search) {
+            const regex = new RegExp(search as string, "i"); // Case-insensitive regex
+            matchFilter.business_name = { $regex: regex };
+        }
+
+        // Aggregation to fetch brands with product counts
         const brandsWithProductCounts = await VendorModel.aggregate([
-            { $skip: skip },
-            { $limit: limitNumber },
+            { $match: matchFilter }, // Apply search filter if any
+            { $skip: skip },         // Pagination skip
+            { $limit: limitNumber }, // Pagination limit
             {
                 $lookup: {
                     from: "VendorProduct", //  Match collection name in DB
@@ -24,14 +32,19 @@ const getBrandList = async (req: Request, res: Response) => {
                 }
             },
             {
-                $addFields: { productCount: { $size: "$products" } } // Add product count field
+                $addFields: {
+                    productCount: { $size: "$products" } // Add productCount field
+                }
             },
             {
-                $project: { products: 0 } //  Exclude product list, only send count
+                $project: {
+                    products: 0 // Exclude product list, only return count
+                }
             }
         ]);
 
-        const count = await VendorModel.countDocuments(); //  Total brand count
+        // Count total matching brands
+        const count = await VendorModel.countDocuments(matchFilter);
 
         return sendApiResponse(res, 200, "Brand list fetched successfully", {
             data: brandsWithProductCounts,
@@ -44,59 +57,124 @@ const getBrandList = async (req: Request, res: Response) => {
     }
 };
 
+
 const productListByBrand = async (req: Request, res: Response) => {
+    const { brandId } = req.params;
+
     try {
-        const { page = 1, limit = 10 } = req.query;
+        // Extract pagination and filter query params
+        const { page = 1, limit = 10, search, category } = req.query;
         const pageNumber = Number(page);
         const limitNumber = Number(limit);
         const skip = (pageNumber - 1) * limitNumber;
 
-        const { brandId } = req.params;
+        // Verify if the brand/vendor exists
         const brand = await VendorModel.findById(brandId);
         if (!brand) {
             return sendApiResponse(res, 404, "Brand not found");
         }
-        const list = await VendorProductModel.find({ vendorId: brandId })
-        .skip(skip)
-        .limit(limitNumber)
-        .populate({
-            path: "productId",
-            populate: { path: "category" } // Populate category inside productId
+
+        // Get all product IDs associated with this vendor
+        const vendorProducts = await VendorProductModel.find({ vendorId: brandId }).select("productId");
+        const productIds = vendorProducts.map((vp) => vp.productId);
+
+        // Build product query filter
+        let productFilter: any = { _id: { $in: productIds } };
+
+        // If search is provided, match against title or tags (tags is an array of strings)
+        if (search) {
+            productFilter.$or = [
+                { title: { $regex: search as string, $options: "i" } },
+                { tags: { $in: [new RegExp(search as string, "i")] } }, // case-insensitive match in tags array
+            ];
+        }
+
+        // If category filter is provided
+        if (category) {
+            const categoryArray = Array.isArray(category) ? category : [category];
+            productFilter.categories = { $in: categoryArray };
+        }
+
+        // Fetch products with applied filters and pagination
+        const productList = await ProductModel.find(productFilter)
+            .skip(skip)
+            .limit(limitNumber)
+            .populate("category")
+            .lean();
+
+        // Get total count for pagination
+        const count = await ProductModel.countDocuments(productFilter);
+
+        // Return response
+        return sendApiResponse(res, 200, "Product list fetched successfully", {
+            data: productList,
+            count
         });
-        const count = await VendorProductModel.countDocuments({ vendorId: brandId });
-        return sendApiResponse(res, 200, "Product list fetched successfully", { data: list, count: count });
+
     } catch (error) {
-        console.error("error while get product list by brand", error);
+        console.error("Error while getting product list by brand", error);
         return sendApiResponse(res, 500, "Internal server error");
     }
-}
+};
 
 const brandProductList = async (req: AuthRequest, res: Response) => {
-    const { _id: brandId } = req.user;
+    const { _id: brandId } = req.user; // Get brand ID from authenticated user
+
     try {
-        const { page = 1, limit = 10 } = req.query;
+        // Extract pagination and filter query params
+        const { page = 1, limit = 10, search, category } = req.query;
         const pageNumber = Number(page);
         const limitNumber = Number(limit);
         const skip = (pageNumber - 1) * limitNumber;
 
+        // Verify if the brand/vendor exists
         const brand = await VendorModel.findById(brandId);
         if (!brand) {
             return sendApiResponse(res, 404, "Brand not found");
         }
-        const list = await VendorProductModel.find({ vendorId: brandId })
-        .skip(skip)
-        .limit(limitNumber)
-        .populate({
-            path: "productId",
-            populate: { path: "category" } // Populate category inside productId
+
+        // Get all product IDs associated with this vendor
+        const vendorProducts = await VendorProductModel.find({ vendorId: brandId }).select("productId");
+        const productIds = vendorProducts.map((vp) => vp.productId);
+
+        // Build product query filter
+        let productFilter: any = { _id: { $in: productIds } };
+
+        // Apply search filter to title or tags
+        if (search) {
+            productFilter.$or = [
+                { title: { $regex: search as string, $options: "i" } },
+                { tags: { $in: [new RegExp(search as string, "i")] } },
+            ];
+        }
+
+        // Apply category filter
+        if (category) {
+            const categoryArray = Array.isArray(category) ? category : [category];
+            productFilter.categories = { $in: categoryArray };
+        }
+
+        // Fetch filtered products with pagination
+        const productList = await ProductModel.find(productFilter)
+            .skip(skip)
+            .limit(limitNumber)
+            .populate("category")
+            .lean();
+
+        // Get total count of filtered results
+        const count = await ProductModel.countDocuments(productFilter);
+
+        // Send response
+        return sendApiResponse(res, 200, "Product list fetched successfully", {
+            data: productList,
+            count
         });
-        const count = await VendorProductModel.countDocuments({ vendorId: brandId });
-        return sendApiResponse(res, 200, "Product list fetched successfully", { data: list, count: count });
+
     } catch (error) {
-        console.error("error while get product list by brand", error);
+        console.error("Error while getting product list by brand", error);
         return sendApiResponse(res, 500, "Internal server error");
     }
-}
+};
 
 const addNewProduct = async (req: AuthRequest, res: Response) => {
     const { _id: vendorId } = req.user; // Extract vendor ID from authenticated user
