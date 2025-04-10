@@ -9,6 +9,7 @@ import VendorSchema from "../../../../shared-models/src/models/vendor";
 import AccountSchema from "../../../../shared-models/src/models/account";
 import CollaborationSchema from "../../../../shared-models/src/models/collaboration";
 import ChannelSchema from "../../../../shared-models/src/models/channel";
+import RequestSchema from "../../../../shared-models/src/models/request";
 
 const ProductModel = mongoose.model("Product", ProductSchema);
 const CategoryModel = mongoose.model("Category", CategorySchema);
@@ -20,6 +21,7 @@ const CreatorModel = mongoose.model("Creator", CreatorSchema);
 const AccountModel = mongoose.model("Account", AccountSchema);
 const CollaborationModel = mongoose.model("Collaboration", CollaborationSchema);
 const ChannelModel = mongoose.model("Channel", ChannelSchema);
+const RequestModel = mongoose.model("Request", RequestSchema);
 
 export {
     ProductModel,
@@ -31,5 +33,6 @@ export {
     CreatorModel,
     AccountModel,
     CollaborationModel,
-    ChannelModel
+    ChannelModel,
+    RequestModel
 };

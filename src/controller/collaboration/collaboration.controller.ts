@@ -1,69 +1,91 @@
 import { Response } from "express";
 import sendApiResponse from "../../common";
 import { AuthRequest } from "../../types/authRequest";
-import { ChannelModel, VendorProductModel, CollaborationModel, CreatorModel, ProductModel } from "../../database/model";
+import { ChannelModel, VendorProductModel, CollaborationModel, CreatorModel, ProductModel, RequestModel } from "../../database/model";
 import axios from "axios";
 import { BACKEND_URL } from "../../config";
 import { sendNotification } from "../../common/sendNotification";
 
-const creatorCollaborationRequest = async (req: AuthRequest, res: Response) => {
+const collaborationRequest = async (req: AuthRequest, res: Response) => {
     try {
-        const { productId, creatorId, vendorId } = req.body;
+        const { productIds, creatorId, vendorId } = req.body;
+        const userRole = req.userRole; // Can be "CREATOR" or "VENDOR"
 
-        // Validate required fields
-        if (!productId || !creatorId || !vendorId) {
+        // Step 1: Validate input
+        if (!Array.isArray(productIds) || productIds.length === 0 || !creatorId || !vendorId) {
             return sendApiResponse(res, 400, "Missing required fields");
         }
 
-        // Find vendor associated with this product
-        const vendorProduct: any = await VendorProductModel.findOne({ productId, vendorId }).populate('productId');
-
-        if (!vendorProduct) {
-            return sendApiResponse(res, 404, "Vendor not found for this product");
-        }
-
-        // Find the channel information for the vendor
-        const channel = await ChannelModel.findOne({ vendorId, channelType: vendorProduct.channelName });
-
-        if (!channel) {
-            return sendApiResponse(res, 404, "Channel not found for this vendor");
-        }
-
-        // Ensure the collaboration is being requested for Shopify products
-        if (channel.channelType !== "shopify") {
-            return sendApiResponse(res, 400, "Collaboration is only available for Shopify products");
-        }
-
-        // Check if collaboration already exists for the same product, vendor, and creator
-        const existingCollaboration = await CollaborationModel.findOne({
-            creatorId,
-            vendorId,
-            productId
-        });
-
-        if (existingCollaboration) {
-            return sendApiResponse(res, 200, "Collaboration already exists", { data: existingCollaboration });
-        }
-
-        // Fetch creator and vendor details
+        // Step 2: Fetch creator details for notification purposes
         const creator = await CreatorModel.findById(creatorId);
+        if (!creator) {
+            return sendApiResponse(res, 404, "Creator not found");
+        }
 
-        // Create a new collaboration request
-        const newCollaboration = new CollaborationModel({
-            creatorId,
-            vendorId,
-            productId,
-            discountType: "PERCENTAGE",
-            discountValue: 0,
-            couponCode: "ABCD",
-            expiresAt: new Date(),
-            collaborationStatus: "REQUESTED", // Default status: REQUESTED for vendor approval
-        });
+        // Step 3: Define who is sending the request
+        const requestFrom = userRole === "VENDOR" ? "VENDOR" : "CREATOR";
 
-        await newCollaboration.save();
-        await sendNotification(req, [vendorId], `New collaboration request from ${creator?.full_name} for product ${vendorProduct.productId?.title}`)
+        // Step 4: Process each productId separately
+        const results = await Promise.all(
+            productIds.map(async (productId: string) => {
+                try {
+                    // 4a. Check vendor-product association
+                    const vendorProduct: any = await VendorProductModel.findOne({ productId, vendorId }).populate("productId");
+                    if (!vendorProduct) return { error: `Vendor not found for product ${productId}` };
 
-        return sendApiResponse(res, 201, "Collaboration request sent successfully", { newCollaboration });
+                    // 4b. Check the channel (must be Shopify)
+                    const channel = await ChannelModel.findOne({ vendorId, channelType: vendorProduct.channelName });
+                    if (!channel) return { error: `Channel not found for vendor ${vendorId}` };
+                    if (channel.channelType !== "shopify") return { error: `Only Shopify products are supported` };
+
+                    // 4c. Check for existing collaboration
+                    const existing = await CollaborationModel.findOne({ creatorId, vendorId, productId });
+                    if (existing) return { message: `Collaboration already exists for product ${vendorProduct.productId?.title}`, existing: true };
+
+                    // 4d. Create a new Request document
+                    const newRequest = new RequestModel({
+                        creatorId,
+                        vendorId,
+                        productId,
+                        collaborationStatus: "REQUESTED",
+                        requestFrom,
+                    });
+
+                    await newRequest.save();
+
+                    // 4e. Create the Collaboration linked to the request
+                    const newCollaboration = new CollaborationModel({
+                        creatorId,
+                        vendorId,
+                        productId,
+                        requestId: newRequest._id,
+                        discountType: "PERCENTAGE",
+                        discountValue: 0,
+                        couponCode: "ABCD", // TODO: Replace with dynamic code generation if needed
+                        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Default to 7 days from now
+                        collaborationStatus: "REQUESTED",
+                        commissionPercentage: 0,
+                    });
+
+                    await newCollaboration.save();
+
+                    // 4f. Send notification to vendor
+                    await sendNotification(
+                        req,
+                        [vendorId],
+                        `New collaboration request from ${creator.full_name} for product ${vendorProduct.productId?.title}`
+                    );
+
+                    return { message: `Collaboration created for product ${vendorProduct.productId?.title}`, data: newCollaboration };
+                } catch (innerError) {
+                    console.error("Error in product processing:", innerError);
+                    return { error: `Internal error while processing product ${productId}` };
+                }
+            })
+        );
+
+        // Step 5: Return results summary
+        return sendApiResponse(res, 201, "Collaboration request processed", { results });
 
     } catch (error: any) {
         console.error("Collaboration creation error:", error);
@@ -72,16 +94,16 @@ const creatorCollaborationRequest = async (req: AuthRequest, res: Response) => {
 };
 
 const getCollaborationList = async (req: AuthRequest, res: Response) => {
-    const userRole = req.userRole; // User role (creator or vendor)
-    const { _id } = req.user; // Extract user ID from authenticated request
+    const userRole = req.userRole; // User role: "creator" or "vendor"
+    const { _id } = req.user; // Authenticated user ID
 
     try {
-        // Extract pagination parameters from query (default: page 1, limit 20)
+        // Step 1: Pagination setup
         const page = Number(req.query.page) || 1;
         const limit = Number(req.query.limit) || 20;
-        const skip = (page - 1) * limit; // Calculate offset
+        const skip = (page - 1) * limit;
 
-        // Define search condition based on user role
+        // Step 2: Build query condition based on user role
         const condition: any = {};
         if (userRole === "creator") {
             condition.creatorId = _id;
@@ -89,23 +111,22 @@ const getCollaborationList = async (req: AuthRequest, res: Response) => {
             condition.vendorId = _id;
         }
 
-        // Fetch collaborations with pagination and populate related product data
+        // Step 3: Fetch collaborations
         const collaborations = await CollaborationModel.find(condition)
             .populate({
                 path: 'productId',
-                populate: {
-                    path: 'category'
-                }
-            }) // Populate product details with category
-            .populate(userRole === 'vendor' ? 'creatorId' : 'vendorId') // Conditionally populate based on userRole
-            .skip(skip) // Apply pagination offset
-            .limit(limit) // Limit the number of results
-            .sort({ createdAt: -1 }); // Sort by newest first
+                populate: { path: 'category' } // Product category
+            })
+            .populate(userRole === 'vendor' ? 'creatorId' : 'vendorId') // Populate opposite user
+            .populate('requestId') // 👈 New: include associated Request data
+            .skip(skip)
+            .limit(limit)
+            .sort({ createdAt: -1 });
 
-        // Count total matching records
+        // Step 4: Count total results for pagination
         const total = await CollaborationModel.countDocuments(condition);
 
-        // Send response with data and pagination info
+        // Step 5: Respond with data
         return sendApiResponse(res, 200, "Collaboration list fetched successfully", {
             data: collaborations,
             total
@@ -118,42 +139,60 @@ const getCollaborationList = async (req: AuthRequest, res: Response) => {
 };
 
 const requestStatusChange = async (req: AuthRequest, res: Response) => {
-    // Extract collaborationId and status (accepted/rejected) from request body
     const { collaborationId, status } = req.body;
-    const { _id } = req.user; // Logged-in user's ID
+    const { _id, userRole } = req.user; // Logged-in user's ID and role
 
     try {
-        // Fetch the collaboration by its ID
+        // -------------------- Fetch Collaboration --------------------
         const collaboration: any = await CollaborationModel.findById(collaborationId);
         if (!collaboration) {
             return sendApiResponse(res, 404, "Collaboration not found");
         }
 
-        // Optional: Authorization check to ensure only the relevant vendor can update status
-        // Uncomment this block if required
-        // if (collaboration.vendorId !== _id) {
-        //     return sendApiResponse(res, 403, "Unauthorized to update this collaboration");
-        // }
-
-        // Update the status to ACCEPTED
-        if (status === "accepted") {
-            collaboration.collaborationStatus = "PENDING";
-            await collaboration.save();
+        // -------------------- Role-Based Ownership Check --------------------
+        if (userRole === "vendor" && String(collaboration.vendorId) !== String(_id)) {
+            return sendApiResponse(res, 403, "Unauthorized: Not your collaboration");
         }
 
-        // Update the status to REJECTED
-        if (status === "rejected") {
+        if (userRole === "creator" && String(collaboration.creatorId) !== String(_id)) {
+            return sendApiResponse(res, 403, "Unauthorized: Not your collaboration");
+        }
+
+        // -------------------- Update Acceptance Flags --------------------
+        if (status === "accepted") {
+            if (userRole === "vendor") {
+                collaboration.agreedByVendor = true;
+            } else if (userRole === "creator") {
+                collaboration.agreedByCreator = true;
+            }
+        } else if (status === "rejected") {
+            if (userRole === "vendor") {
+                collaboration.agreedByVendor = false;
+            } else if (userRole === "creator") {
+                collaboration.agreedByCreator = false;
+            }
+
+            // If either party rejects, mark collaboration as REJECTED
             collaboration.collaborationStatus = "REJECTED";
             await collaboration.save();
+            return sendApiResponse(res, 200, "Collaboration rejected", { collaboration });
         }
 
-        // Send success response
+        // -------------------- If Both Agreed, Mark as PENDING --------------------
+        if (collaboration.agreedByVendor && collaboration.agreedByCreator) {
+            collaboration.collaborationStatus = "PENDING";
+        }
+
+        await collaboration.save();
+
+        // -------------------- Final Response --------------------
         return sendApiResponse(res, 200, "Collaboration status updated successfully", { collaboration });
+
     } catch (error: any) {
         console.error("Collaboration status update error:", error);
         return sendApiResponse(res, 500, "Internal server error", { error: error.message });
     }
-}
+};
 
 const getCollaborationStatusByProduct = async (req: AuthRequest, res: Response) => {
     const { productId } = req.params; // Extract product ID from URL parameters
@@ -227,4 +266,4 @@ const cancelCollaborationRequest = async (req: AuthRequest, res: Response) => {
     }
 };
 
-export { creatorCollaborationRequest, getCollaborationList, requestStatusChange, getCollaborationStatusByProduct, cancelCollaborationRequest };
+export { collaborationRequest, getCollaborationList, requestStatusChange, getCollaborationStatusByProduct, cancelCollaborationRequest };

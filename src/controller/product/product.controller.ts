@@ -1,81 +1,92 @@
 import { Request, Response } from "express";
 import sendApiResponse from "../../common";
-import { ProductModel } from "../../database/model";
+import { CollaborationModel, ProductModel, RequestModel } from "../../database/model";
 import { VendorProductModel } from "../../database/model";
 import { CreatorProductModel } from "../../database/model";
+import { AuthRequest } from "../../types/authRequest";
 
-const getProductList = async (req: Request, res: Response) => {
+const getProductList = async (req: AuthRequest, res: Response) => {
     try {
-        const { page = 1, limit = 10, vendorId, creatorId, categories, search } = req.query;
+        const { _id: creatorId } = req.user;
+
+        // -------------------- Extract and Prepare Query Params --------------------
+        const { page = 1, limit = 10, categories, search } = req.query;
         const pageNumber = Number(page);
         const limitNumber = Number(limit);
         const skip = (pageNumber - 1) * limitNumber;
 
+        // -------------------- Build Product Filters --------------------
         let productFilter: any = {};
 
-        // Fetch vendor's products if vendorId is provided
-        if (vendorId) {
-            const vendorProducts = await VendorProductModel.find({ vendorId }).select("productId");
-            const productIds = vendorProducts.map((vp) => vp.productId);
-            productFilter._id = { $in: productIds };
+        if (search) {
+            productFilter.$or = [
+                { title: { $regex: search, $options: "i" } },
+                { tags: { $in: [new RegExp(search as string, "i")] } }
+            ];
         }
 
-        // Fetch creator's products if creatorId is provided
-        if (creatorId) {
-            const creatorProducts = await CreatorProductModel.find({ creatorId }).select("productId");
-            const productIds = creatorProducts.map((cp) => cp.productId);
-            productFilter._id = { $in: productIds };
-        }
-
-        // If no vendor or creator is provided, fetch all products
-        if (!vendorId && !creatorId) {
-            productFilter = {};
-        }
-
-        // Apply categories filter (supporting multiple categories)
         if (categories) {
             const categoryArray = Array.isArray(categories) ? categories : [categories];
             productFilter.categories = { $in: categoryArray };
         }
 
-        if(search){
-            productFilter.$or = [
-                { title: { $regex: search, $options: 'i' } },
-                { tags: { $in: [new RegExp(search as string, 'i')] } } // Match any tag using regex
-            ];
-        }
-
-        // Fetch filtered product list with vendor information
-        const list = await ProductModel.find(productFilter)
+        // -------------------- Fetch Filtered Products with Pagination --------------------
+        const productList = await ProductModel.find(productFilter)
             .skip(skip)
             .limit(limitNumber)
-            .populate('category')
-            .lean(); // Convert to plain JavaScript objects
+            .populate("category")
+            .lean();
 
-        // Get vendor information for each product
-        const productsWithVendor = await Promise.all(
-            list.map(async (product) => {
-                const vendorProduct = await VendorProductModel.findOne({ productId: product._id })
-                    .populate({
-                        path: 'vendorId',
-                        select: '_id'
-                    })
-                    .lean();
+        const productIds = productList.map(p => p._id);
 
-                return {
-                    ...product,
-                    vendorId: vendorProduct ? vendorProduct.vendorId : null
-                };
-            })
-        );
+        // -------------------- Fetch Requests & Collaborations by This Creator --------------------
+        const [requests, collaborations] = await Promise.all([
+            RequestModel.find({
+                creatorId,
+                productId: { $in: productIds }
+            }).lean(),
+            CollaborationModel.find({
+                creatorId,
+                productId: { $in: productIds }
+            }).lean()
+        ]);
+
+        // -------------------- Create Lookup Maps for Request & Collaboration --------------------
+        const requestMap = new Map<string, any>();
+        requests.forEach(r => requestMap.set(r.productId.toString(), r));
+
+        const collaborationMap = new Map<string, any>();
+        collaborations.forEach(c => collaborationMap.set(c.productId.toString(), c));
+
+        // -------------------- Merge Product + Vendor Info + Creator's Request/Collab --------------------
+        const finalList = await Promise.all(productList.map(async (product) => {
+            const vendorProduct = await VendorProductModel.findOne({ productId: product._id })
+                .populate({ path: 'vendorId', select: '_id name' })
+                .lean();
+
+            return {
+                ...product,
+                vendorId: vendorProduct?.vendorId || null,
+                request: requestMap.get(product._id.toString()) || null,
+                collaboration: collaborationMap.get(product._id.toString()) || null
+            };
+        }));
+
+        // -------------------- Count Total Products for Pagination --------------------
         const count = await ProductModel.countDocuments(productFilter);
 
-        return sendApiResponse(res, 200, "Product list fetched successfully", { data: productsWithVendor, count });
+        // -------------------- Final Response --------------------
+        return sendApiResponse(res, 200, "Product list fetched successfully", {
+            data: finalList,
+            count
+        });
+
     } catch (error) {
         console.error("Error while fetching product list", error);
         return sendApiResponse(res, 500, "Internal server error");
     }
 };
+
 
 const getProductById = async (req: Request, res: Response) => {
     try {

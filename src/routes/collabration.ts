@@ -4,7 +4,7 @@ import { creatorAuthMiddleware } from '../middleware/creatorAuth.middleware';
 import { commonAuthMiddleware } from '../middleware/commonAuth.middleware';
 const router = Router();
 
-router.post('/creator/request', commonAuthMiddleware, collaborationController.creatorCollaborationRequest); // creator request for collaboration
+router.post('/creator/request', commonAuthMiddleware, collaborationController.collaborationRequest); // creator request for collaboration
 
 router.delete('/request/cancel/:collaborationId', commonAuthMiddleware, collaborationController.cancelCollaborationRequest); // cancel collaboration request
 

@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import sendApiResponse from "../../common";
-import { ProductModel, VendorModel, VendorProductModel } from "../../database/model";
+import { CollaborationModel, ProductModel, VendorModel, VendorProductModel } from "../../database/model";
 import { AuthRequest } from "../../types/authRequest";
 import { BACKEND_URL } from "../../config";
 
@@ -58,64 +58,86 @@ const getBrandList = async (req: Request, res: Response) => {
 };
 
 
-const productListByBrand = async (req: Request, res: Response) => {
+const productListByBrand = async (req: AuthRequest, res: Response) => {
+    const { _id: creatorId } = req.user; // Extract creator ID from auth
     const { brandId } = req.params;
 
     try {
-        // Extract pagination and filter query params
+        // Pagination & filters
         const { page = 1, limit = 10, search, category } = req.query;
         const pageNumber = Number(page);
         const limitNumber = Number(limit);
         const skip = (pageNumber - 1) * limitNumber;
 
-        // Verify if the brand/vendor exists
+        // Validate brand/vendor
         const brand = await VendorModel.findById(brandId);
         if (!brand) {
             return sendApiResponse(res, 404, "Brand not found");
         }
 
-        // Get all product IDs associated with this vendor
+        // Get all product IDs listed under this vendor
         const vendorProducts = await VendorProductModel.find({ vendorId: brandId }).select("productId");
-        const productIds = vendorProducts.map((vp) => vp.productId);
+        const vendorProductIds = vendorProducts.map((vp) => vp.productId.toString());
 
-        // Build product query filter
-        let productFilter: any = { _id: { $in: productIds } };
+        // Find all collaborations/requests by this creator with vendor’s products
+        const collaborations = await CollaborationModel.find({
+            vendorId: brandId,
+            creatorId,
+            productId: { $in: vendorProductIds }
+        }).populate("requestId").lean();
 
-        // If search is provided, match against title or tags (tags is an array of strings)
+        const interactedProductIds = collaborations.map((c) => c.productId.toString());
+        const collaborationMap = new Map<string, any>();
+        collaborations.forEach((c) => {
+            collaborationMap.set(c.productId.toString(), c);
+        });
+
+        // If search/category filters are active, apply them
+        let productFilter: any = {
+            _id: { $in: interactedProductIds }
+        };
+
         if (search) {
             productFilter.$or = [
                 { title: { $regex: search as string, $options: "i" } },
-                { tags: { $in: [new RegExp(search as string, "i")] } }, // case-insensitive match in tags array
+                { tags: { $in: [new RegExp(search as string, "i")] } },
             ];
         }
 
-        // If category filter is provided
         if (category) {
             const categoryArray = Array.isArray(category) ? category : [category];
             productFilter.categories = { $in: categoryArray };
         }
 
-        // Fetch products with applied filters and pagination
+        // Fetch filtered product list with pagination
         const productList = await ProductModel.find(productFilter)
             .skip(skip)
             .limit(limitNumber)
             .populate("category")
             .lean();
 
-        // Get total count for pagination
-        const count = await ProductModel.countDocuments(productFilter);
+        // Add collaboration + request data
+        const enrichedProducts = productList.map((product) => {
+            const collab = collaborationMap.get(product._id.toString());
+            return {
+                ...product,
+                collaboration: collab || null,
+                request: collab?.requestId || null
+            };
+        });
 
         // Return response
-        return sendApiResponse(res, 200, "Product list fetched successfully", {
-            data: productList,
-            count
+        return sendApiResponse(res, 200, "Vendor's product list (creator-specific) fetched successfully", {
+            data: enrichedProducts,
+            count: interactedProductIds.length
         });
 
     } catch (error) {
-        console.error("Error while getting product list by brand", error);
+        console.error("Error while getting creator-specific brand product list", error);
         return sendApiResponse(res, 500, "Internal server error");
     }
 };
+
 
 const brandProductList = async (req: AuthRequest, res: Response) => {
     const { _id: brandId } = req.user; // Get brand ID from authenticated user

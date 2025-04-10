@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import sendApiResponse from "../../common";
-import { CreatorModel, CreatorProductModel, ProductModel } from "../../database/model";
+import { CollaborationModel, CreatorModel, CreatorProductModel, ProductModel } from "../../database/model";
 
 const getCreatorList = async (req: Request, res: Response) => {
     try {
@@ -60,56 +60,74 @@ const getCreatorList = async (req: Request, res: Response) => {
 
 
 const productListByCreator = async (req: Request, res: Response) => {
-    // Extract creator ID from URL params
     const { creatorId } = req.params;
+
     try {
-        // Extract pagination and filters from query params
         const { page = 1, limit = 10, search, category } = req.query;
         const pageNumber = Number(page);
         const limitNumber = Number(limit);
         const skip = (pageNumber - 1) * limitNumber;
 
-
-        // Check if the creator exists
+        // Step 1: Verify creator exists
         const creator = await CreatorModel.findById(creatorId);
         if (!creator) {
             return sendApiResponse(res, 404, "Creator not found");
         }
 
-        // Get all product IDs linked to the creator
+        // Step 2: Get product IDs linked to this creator
         const creatorProducts = await CreatorProductModel.find({ creatorId }).select("productId");
-        const productIds = creatorProducts.map((cp) => cp.productId);
+        const productIds = creatorProducts.map(cp => cp.productId);
 
-        // Build product filter
+        // Step 3: Build product filter
         let productFilter: any = { _id: { $in: productIds } };
 
-        // If search is provided, filter by title or tags
         if (search) {
             productFilter.$or = [
                 { title: { $regex: search as string, $options: "i" } },
-                { tags: { $in: [new RegExp(search as string, "i")] } }, // matches any tag containing the search term
+                { tags: { $in: [new RegExp(search as string, "i")] } },
             ];
         }
 
-        // If category filter is provided
         if (category) {
             const categoryArray = Array.isArray(category) ? category : [category];
             productFilter.categories = { $in: categoryArray };
         }
 
-        // Fetch product details from ProductModel based on filtered product IDs
-        const productList = await ProductModel.find(productFilter)
+        // Step 4: Fetch filtered products
+        const products = await ProductModel.find(productFilter)
             .skip(skip)
             .limit(limitNumber)
             .populate("category")
             .lean();
 
-        // Total count for pagination
+        // Step 5: Get collaborations and requests for the filtered products
+        const collaborations  = await CollaborationModel.find({
+            productId: { $in: products.map(p => p._id) },
+            creatorId
+        }).populate("requestId").lean();
+
+        // Step 6: Map collaborations by productId for fast lookup
+        const collaborationMap = new Map<string, any>();
+        collaborations.forEach(collab => {
+            collaborationMap.set(collab.productId.toString(), collab);
+        });
+
+        // Step 7: Attach collaboration + request to each product
+        const enrichedProducts = products.map(product => {
+            const collab = collaborationMap.get(product._id.toString());
+            return {
+                ...product,
+                collaboration: collab || null,
+                request: collab?.requestId || null
+            };
+        });
+
+        // Step 8: Get total count
         const count = await ProductModel.countDocuments(productFilter);
 
-        // Send final response
+        // Step 9: Send final response
         return sendApiResponse(res, 200, "Product list fetched successfully", {
-            data: productList,
+            data: enrichedProducts,
             count
         });
 
