@@ -20,12 +20,12 @@ const addCategory = async (req: Request, res: Response) => {
 
 const getCategoryList = async (req: Request, res: Response) => {
     try {
-        const { page, limit, parentId } = req.query;
+        const { page, limit, parentId, all } = req.query;
 
         // Initialize query condition based on parentId
         let condition = {};
         if (parentId) condition = { parentId };
-        if (!parentId) condition = { parentId: null };
+        if (!parentId && all === 'false') condition = { parentId: null };
 
         let list, count;
 

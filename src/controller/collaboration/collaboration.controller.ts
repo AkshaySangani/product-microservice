@@ -117,7 +117,13 @@ const getCollaborationList = async (req: AuthRequest, res: Response) => {
                 path: 'productId',
                 populate: { path: 'category' } // Product category
             })
-            .populate(userRole === 'vendor' ? 'creatorId' : 'vendorId') // Populate opposite user
+            .populate(userRole === 'vendor' ? {
+                path: 'creatorId',
+                select: 'name email profileImage' // Add the fields you want here
+              } : {
+                path: 'vendorId',
+                select: 'business_name logo website' // Add the fields you want here
+              }) // Populate opposite user
             .populate('requestId') // 👈 New: include associated Request data
             .skip(skip)
             .limit(limit)
