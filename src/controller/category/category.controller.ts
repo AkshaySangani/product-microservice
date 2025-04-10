@@ -18,26 +18,40 @@ const addCategory = async (req: Request, res: Response) => {
     }
 }
 
-
 const getCategoryList = async (req: Request, res: Response) => {
     try {
         const { page, limit, parentId } = req.query;
-        const pageNumber = Number(page);
-        const limitNumber = Number(limit);
 
-        const skip = (pageNumber - 1) * limitNumber;
+        // Initialize query condition based on parentId
+        let condition = {};
+        if (parentId) condition = { parentId };
+        if (!parentId) condition = { parentId: null };
 
-        let condition = {}
-        if(parentId) condition = { parentId }
+        let list, count;
 
-        const list = await CategoryModel.find(condition).skip(skip).limit(limitNumber);
-        const count = await CategoryModel.countDocuments(condition);
-        return sendApiResponse(res, 200, "Category list fetched successfully", { data: list, count: count });
+        // If page & limit provided, apply pagination
+        if (page && limit) {
+            const pageNumber = Number(page);
+            const limitNumber = Number(limit);
+            const skip = (pageNumber - 1) * limitNumber;
+
+            list = await CategoryModel.find(condition).skip(skip).limit(limitNumber);
+            count = await CategoryModel.countDocuments(condition);
+        } else {
+            // If no pagination, fetch all categories matching condition
+            list = await CategoryModel.find(condition);
+            count = list.length;
+        }
+
+        return sendApiResponse(res, 200, "Category list fetched successfully", {
+            data: list,
+            count
+        });
     } catch (error) {
-        console.error("error while get category list", error);
+        console.error("Error while fetching category list", error);
         return sendApiResponse(res, 500, "Internal server error");
     }
-}
+};
 
 const deleteCategory = async (req: Request, res: Response) => {
     try {

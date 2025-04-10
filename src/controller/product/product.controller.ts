@@ -5,6 +5,7 @@ import { VendorProductModel } from "../../database/model";
 import { CreatorProductModel } from "../../database/model";
 import { AuthRequest } from "../../types/authRequest";
 
+//for creator product list with request and collaboration
 const getProductList = async (req: AuthRequest, res: Response) => {
     try {
         const { _id: creatorId } = req.user;
@@ -61,12 +62,12 @@ const getProductList = async (req: AuthRequest, res: Response) => {
         // -------------------- Merge Product + Vendor Info + Creator's Request/Collab --------------------
         const finalList = await Promise.all(productList.map(async (product) => {
             const vendorProduct = await VendorProductModel.findOne({ productId: product._id })
-                .populate({ path: 'vendorId', select: '_id name' })
+                .populate({ path: 'vendorId', select: '_id business_name'})
                 .lean();
 
             return {
                 ...product,
-                vendorId: vendorProduct?.vendorId || null,
+                vendor: vendorProduct?.vendorId || null,
                 request: requestMap.get(product._id.toString()) || null,
                 collaboration: collaborationMap.get(product._id.toString()) || null
             };

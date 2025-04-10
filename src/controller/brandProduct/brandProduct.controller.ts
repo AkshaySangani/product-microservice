@@ -25,7 +25,7 @@ const getBrandList = async (req: Request, res: Response) => {
             { $limit: limitNumber }, // Pagination limit
             {
                 $lookup: {
-                    from: "VendorProduct", //  Match collection name in DB
+                    from: "vendorproducts",
                     localField: "_id",
                     foreignField: "vendorId",
                     as: "products"
@@ -61,83 +61,83 @@ const getBrandList = async (req: Request, res: Response) => {
 const productListByBrand = async (req: AuthRequest, res: Response) => {
     const { _id: creatorId } = req.user;
     const { brandId } = req.params;
-  
+
     try {
-      const { page = 1, limit = 10, search, category } = req.query;
-      const pageNumber = Number(page);
-      const limitNumber = Number(limit);
-      const skip = (pageNumber - 1) * limitNumber;
-  
-      const brand = await VendorModel.findById(brandId).select("business_name");
-      if (!brand) {
-        return sendApiResponse(res, 404, "Brand not found");
-      }
-  
-      // 1. Find all productIds under this brand
-      const vendorProducts = await VendorProductModel.find({ vendorId: brandId }).select("productId");
-      const vendorProductIds = vendorProducts.map((vp) => vp.productId.toString());
-  
-      // 2. Build filter for all brand's products
-      let productFilter: any = {
-        _id: { $in: vendorProductIds }
-      };
-  
-      if (search) {
-        productFilter.$or = [
-          { title: { $regex: search as string, $options: "i" } },
-          { tags: { $in: [new RegExp(search as string, "i")] } },
-        ];
-      }
-  
-      if (category) {
-        const categoryArray = Array.isArray(category) ? category : [category];
-        productFilter.categories = { $in: categoryArray };
-      }
-  
-      // 3. Fetch filtered product list with pagination
-      const productList = await ProductModel.find(productFilter)
-        .skip(skip)
-        .limit(limitNumber)
-        .populate("category")
-        .lean();
-  
-      // 4. Fetch creator's collaborations for this brand’s products
-      const collaborations = await CollaborationModel.find({
-        vendorId: brandId,
-        creatorId,
-        productId: { $in: vendorProductIds }
-      }).populate("requestId").lean();
-  
-      // 5. Map collaborations by productId for quick lookup
-      const collaborationMap = new Map<string, any>();
-      collaborations.forEach((c) => {
-        collaborationMap.set(c.productId.toString(), c);
-      });
-  
-      // 6. Enrich each product with collaboration if exists
-      const enrichedProducts = productList.map((product) => {
-        const collab = collaborationMap.get(product._id.toString());
-        const request = collab?.requestId || null;
-        delete collab?.requestId;
-        return {
-          ...product,
-          collaboration: collab || null,
-          request: request || null,
-          vendor: brand,
+        const { page = 1, limit = 10, search, category } = req.query;
+        const pageNumber = Number(page);
+        const limitNumber = Number(limit);
+        const skip = (pageNumber - 1) * limitNumber;
+
+        const brand = await VendorModel.findById(brandId).select("business_name");
+        if (!brand) {
+            return sendApiResponse(res, 404, "Brand not found");
+        }
+
+        // 1. Find all productIds under this brand
+        const vendorProducts = await VendorProductModel.find({ vendorId: brandId }).select("productId");
+        const vendorProductIds = vendorProducts.map((vp) => vp.productId.toString());
+
+        // 2. Build filter for all brand's products
+        let productFilter: any = {
+            _id: { $in: vendorProductIds }
         };
-      });
-  
-      return sendApiResponse(res, 200, "Vendor's product list (creator-specific) fetched successfully", {
-        data: enrichedProducts,
-        count: vendorProductIds.length,
-      });
-  
+
+        if (search) {
+            productFilter.$or = [
+                { title: { $regex: search as string, $options: "i" } },
+                { tags: { $in: [new RegExp(search as string, "i")] } },
+            ];
+        }
+
+        if (category) {
+            const categoryArray = Array.isArray(category) ? category : [category];
+            productFilter.categories = { $in: categoryArray };
+        }
+
+        // 3. Fetch filtered product list with pagination
+        const productList = await ProductModel.find(productFilter)
+            .skip(skip)
+            .limit(limitNumber)
+            .populate("category")
+            .lean();
+
+        // 4. Fetch creator's collaborations for this brand’s products
+        const collaborations = await CollaborationModel.find({
+            vendorId: brandId,
+            creatorId,
+            productId: { $in: vendorProductIds }
+        }).populate("requestId").lean();
+
+        // 5. Map collaborations by productId for quick lookup
+        const collaborationMap = new Map<string, any>();
+        collaborations.forEach((c) => {
+            collaborationMap.set(c.productId.toString(), c);
+        });
+
+        // 6. Enrich each product with collaboration if exists
+        const enrichedProducts = productList.map((product) => {
+            const collab = collaborationMap.get(product._id.toString());
+            const request = collab?.requestId || null;
+            delete collab?.requestId;
+            return {
+                ...product,
+                collaboration: collab || null,
+                request: request || null,
+                vendor: brand,
+            };
+        });
+
+        return sendApiResponse(res, 200, "Vendor's product list (creator-specific) fetched successfully", {
+            data: enrichedProducts,
+            count: vendorProductIds.length,
+        });
+
     } catch (error) {
-      console.error("Error while getting creator-specific brand product list", error);
-      return sendApiResponse(res, 500, "Internal server error");
+        console.error("Error while getting creator-specific brand product list", error);
+        return sendApiResponse(res, 500, "Internal server error");
     }
-  };
-  
+};
+
 
 const brandProductList = async (req: AuthRequest, res: Response) => {
     const { _id: brandId } = req.user; // Get brand ID from authenticated user
