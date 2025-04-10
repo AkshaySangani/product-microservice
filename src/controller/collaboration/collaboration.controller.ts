@@ -76,7 +76,7 @@ const collaborationRequest = async (req: AuthRequest, res: Response) => {
                         `New collaboration request from ${creator.full_name} for product ${vendorProduct.productId?.title}`
                     );
 
-                    return { message: `Collaboration created for product ${vendorProduct.productId?.title}`, data: newCollaboration };
+                    return { message: `Collaboration created for product ${vendorProduct.productId?.title}`, data: {collaboration: newCollaboration, request: newRequest} };
                 } catch (innerError) {
                     console.error("Error in product processing:", innerError);
                     return { error: `Internal error while processing product ${productId}` };
