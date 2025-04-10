@@ -70,7 +70,7 @@ const productListByBrand = async (req: AuthRequest, res: Response) => {
         const skip = (pageNumber - 1) * limitNumber;
 
         // Validate brand/vendor
-        const brand = await VendorModel.findById(brandId);
+        const brand = await VendorModel.findById(brandId).select("business_name");
         if (!brand) {
             return sendApiResponse(res, 404, "Brand not found");
         }
@@ -84,7 +84,7 @@ const productListByBrand = async (req: AuthRequest, res: Response) => {
             vendorId: brandId,
             creatorId,
             productId: { $in: vendorProductIds }
-        }).populate("requestId").lean();
+        }).lean();
 
         const interactedProductIds = collaborations.map((c) => c.productId.toString());
         const collaborationMap = new Map<string, any>();
@@ -109,6 +109,7 @@ const productListByBrand = async (req: AuthRequest, res: Response) => {
             productFilter.categories = { $in: categoryArray };
         }
 
+        console.log("brandbrand",brand)
         // Fetch filtered product list with pagination
         const productList = await ProductModel.find(productFilter)
             .skip(skip)
@@ -119,10 +120,13 @@ const productListByBrand = async (req: AuthRequest, res: Response) => {
         // Add collaboration + request data
         const enrichedProducts = productList.map((product) => {
             const collab = collaborationMap.get(product._id.toString());
+            const request = collab?.requestId || null;
+            delete collab?.requestId;
             return {
                 ...product,
                 collaboration: collab || null,
-                request: collab?.requestId || null
+                request: request || null,
+                vendor: brand,
             };
         });
 
