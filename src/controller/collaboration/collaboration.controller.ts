@@ -69,7 +69,7 @@ const collaborationRequest = async (req: AuthRequest, res: Response) => {
 
                     await newCollaboration.save();
 
-                    // 4f. Send notification to vendor
+                    // 4f. Send notification to vendor  
                     await sendNotification(
                         req,
                         [vendorId],

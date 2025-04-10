@@ -59,89 +59,85 @@ const getBrandList = async (req: Request, res: Response) => {
 
 
 const productListByBrand = async (req: AuthRequest, res: Response) => {
-    const { _id: creatorId } = req.user; // Extract creator ID from auth
+    const { _id: creatorId } = req.user;
     const { brandId } = req.params;
-
+  
     try {
-        // Pagination & filters
-        const { page = 1, limit = 10, search, category } = req.query;
-        const pageNumber = Number(page);
-        const limitNumber = Number(limit);
-        const skip = (pageNumber - 1) * limitNumber;
-
-        // Validate brand/vendor
-        const brand = await VendorModel.findById(brandId).select("business_name");
-        if (!brand) {
-            return sendApiResponse(res, 404, "Brand not found");
-        }
-
-        // Get all product IDs listed under this vendor
-        const vendorProducts = await VendorProductModel.find({ vendorId: brandId }).select("productId");
-        const vendorProductIds = vendorProducts.map((vp) => vp.productId.toString());
-
-        // Find all collaborations/requests by this creator with vendor’s products
-        const collaborations = await CollaborationModel.find({
-            vendorId: brandId,
-            creatorId,
-            productId: { $in: vendorProductIds }
-        }).populate("requestId").lean();
-
-        const interactedProductIds = collaborations.map((c) => c.productId.toString());
-        const collaborationMap = new Map<string, any>();
-        collaborations.forEach((c) => {
-            collaborationMap.set(c.productId.toString(), c);
-        });
-
-        // If search/category filters are active, apply them
-        let productFilter: any = {
-            _id: { $in: interactedProductIds }
+      const { page = 1, limit = 10, search, category } = req.query;
+      const pageNumber = Number(page);
+      const limitNumber = Number(limit);
+      const skip = (pageNumber - 1) * limitNumber;
+  
+      const brand = await VendorModel.findById(brandId).select("business_name");
+      if (!brand) {
+        return sendApiResponse(res, 404, "Brand not found");
+      }
+  
+      // 1. Find all productIds under this brand
+      const vendorProducts = await VendorProductModel.find({ vendorId: brandId }).select("productId");
+      const vendorProductIds = vendorProducts.map((vp) => vp.productId.toString());
+  
+      // 2. Build filter for all brand's products
+      let productFilter: any = {
+        _id: { $in: vendorProductIds }
+      };
+  
+      if (search) {
+        productFilter.$or = [
+          { title: { $regex: search as string, $options: "i" } },
+          { tags: { $in: [new RegExp(search as string, "i")] } },
+        ];
+      }
+  
+      if (category) {
+        const categoryArray = Array.isArray(category) ? category : [category];
+        productFilter.categories = { $in: categoryArray };
+      }
+  
+      // 3. Fetch filtered product list with pagination
+      const productList = await ProductModel.find(productFilter)
+        .skip(skip)
+        .limit(limitNumber)
+        .populate("category")
+        .lean();
+  
+      // 4. Fetch creator's collaborations for this brand’s products
+      const collaborations = await CollaborationModel.find({
+        vendorId: brandId,
+        creatorId,
+        productId: { $in: vendorProductIds }
+      }).populate("requestId").lean();
+  
+      // 5. Map collaborations by productId for quick lookup
+      const collaborationMap = new Map<string, any>();
+      collaborations.forEach((c) => {
+        collaborationMap.set(c.productId.toString(), c);
+      });
+  
+      // 6. Enrich each product with collaboration if exists
+      const enrichedProducts = productList.map((product) => {
+        const collab = collaborationMap.get(product._id.toString());
+        const request = collab?.requestId || null;
+        delete collab?.requestId;
+        return {
+          ...product,
+          collaboration: collab || null,
+          request: request || null,
+          vendor: brand,
         };
-
-        if (search) {
-            productFilter.$or = [
-                { title: { $regex: search as string, $options: "i" } },
-                { tags: { $in: [new RegExp(search as string, "i")] } },
-            ];
-        }
-
-        if (category) {
-            const categoryArray = Array.isArray(category) ? category : [category];
-            productFilter.categories = { $in: categoryArray };
-        }
-
-        console.log("brandbrand",brand)
-        // Fetch filtered product list with pagination
-        const productList = await ProductModel.find(productFilter)
-            .skip(skip)
-            .limit(limitNumber)
-            .populate("category")
-            .lean();
-
-        // Add collaboration + request data
-        const enrichedProducts = productList.map((product) => {
-            const collab = collaborationMap.get(product._id.toString());
-            const request = collab?.requestId || null;
-            delete collab?.requestId;
-            return {
-                ...product,
-                collaboration: collab || null,
-                request: request || null,
-                vendor: brand,
-            };
-        });
-
-        // Return response
-        return sendApiResponse(res, 200, "Vendor's product list (creator-specific) fetched successfully", {
-            data: enrichedProducts,
-            count: interactedProductIds.length
-        });
-
+      });
+  
+      return sendApiResponse(res, 200, "Vendor's product list (creator-specific) fetched successfully", {
+        data: enrichedProducts,
+        count: vendorProductIds.length,
+      });
+  
     } catch (error) {
-        console.error("Error while getting creator-specific brand product list", error);
-        return sendApiResponse(res, 500, "Internal server error");
+      console.error("Error while getting creator-specific brand product list", error);
+      return sendApiResponse(res, 500, "Internal server error");
     }
-};
-
+  };
+  
 
 const brandProductList = async (req: AuthRequest, res: Response) => {
     const { _id: brandId } = req.user; // Get brand ID from authenticated user
