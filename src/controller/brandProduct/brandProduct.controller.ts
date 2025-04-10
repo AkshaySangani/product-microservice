@@ -84,7 +84,7 @@ const productListByBrand = async (req: AuthRequest, res: Response) => {
             vendorId: brandId,
             creatorId,
             productId: { $in: vendorProductIds }
-        }).lean();
+        }).populate("requestId").lean();
 
         const interactedProductIds = collaborations.map((c) => c.productId.toString());
         const collaborationMap = new Map<string, any>();
