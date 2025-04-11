@@ -231,7 +231,7 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
             }
 
             productData = responseData.data;
-            console.log("67f3810bc9a693848216095d",productData)
+            console.log("67f3810bc9a693848216095d",productData,{channelProductId: productData.id, vendorId: vendorId })
 
             // Check if product already exists in the database
             let existingProduct = await ProductModel.findOne({ channelProductId: productData.id, vendorId: vendorId });
@@ -245,7 +245,7 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
                 title: productData.title,
                 sku: productData.handle,
                 description: productData.description || "",
-                media: productData.featuredMedia?.preview?.image?.url ? [productData.featuredMedia.preview.image.url] : [],
+                media: productData.media?.nodes?.length >0  ? productData.media?.nodes.map((item:any)=>item?.image?.url) : [],
                 channelName: channelName,
                 category: categories,
                 tags: productData.tags || [],
