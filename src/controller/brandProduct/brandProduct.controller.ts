@@ -231,7 +231,6 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
             }
 
             productData = responseData.data;
-            console.log("67f3810bc9a693848216095d",productData,{channelProductId: productData.id, vendorId: vendorId })
 
             // Check if product already exists in the database
             let existingProduct = await ProductModel.findOne({ channelProductId: productData.id, vendorId: vendorId });
