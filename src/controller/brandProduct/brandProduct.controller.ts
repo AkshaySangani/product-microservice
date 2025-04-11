@@ -249,6 +249,7 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
                 channelName: channelName,
                 category: categories,
                 tags: productData.tags || [],
+                vendorId: vendorId,
             });
 
             await existingProduct.save();
