@@ -243,14 +243,18 @@ const cancelCollaborationRequest = async (req: AuthRequest, res: Response) => {
 
         // Match collaboration 
         const collaboration = await CollaborationModel.findById(collaborationId)
-
+        
         if (!collaboration) {
             return sendApiResponse(res, 404, "Collaboration not found.");
+        }
+        const request : any= await RequestModel.findById(collaboration.requestId);
+        if(!request){
+            return sendApiResponse(res, 404, "Request not found.");
         }
 
         // Delete the collaboration
         await CollaborationModel.findByIdAndDelete(collaboration._id);
-
+        await RequestModel.findByIdAndDelete(request._id);
         return sendApiResponse(res, 200, "Collaboration request cancelled successfully");
     } catch (error: any) {
         console.error("Cancel collaboration request error:", error);
