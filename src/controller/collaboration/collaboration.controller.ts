@@ -151,6 +151,7 @@ const requestStatusChange = async (req: AuthRequest, res: Response) => {
     try {
         // -------------------- Fetch Collaboration --------------------
         const collaboration: any = await CollaborationModel.findById(collaborationId);
+        const request : any= await RequestModel.findById(collaboration.requestId);
         if (!collaboration) {
             return sendApiResponse(res, 404, "Collaboration not found");
         }
@@ -166,33 +167,18 @@ const requestStatusChange = async (req: AuthRequest, res: Response) => {
 
         // -------------------- Update Acceptance Flags --------------------
         if (status === "accepted") {
-            if (userRole === "vendor") {
-                collaboration.agreedByVendor = true;
-            } else if (userRole === "creator") {
-                collaboration.agreedByCreator = true;
-            }
+           request.collaborationStatus = "ACCEPTED";
+            collaboration.collaborationStatus = "PENDING";
         } else if (status === "rejected") {
-            if (userRole === "vendor") {
-                collaboration.agreedByVendor = false;
-            } else if (userRole === "creator") {
-                collaboration.agreedByCreator = false;
-            }
-
-            // If either party rejects, mark collaboration as REJECTED
-            collaboration.collaborationStatus = "REJECTED";
-            await collaboration.save();
-            return sendApiResponse(res, 200, "Collaboration rejected", { collaboration });
+            request.collaborationStatus = "REJECTED";
         }
 
         // -------------------- If Both Agreed, Mark as PENDING --------------------
-        if (collaboration.agreedByVendor && collaboration.agreedByCreator) {
-            collaboration.collaborationStatus = "PENDING";
-        }
-
         await collaboration.save();
+        await request.save();
 
         // -------------------- Final Response --------------------
-        return sendApiResponse(res, 200, "Collaboration status updated successfully", { collaboration });
+        return sendApiResponse(res, 200, "Request status updated successfully", { collaboration, request });
 
     } catch (error: any) {
         console.error("Collaboration status update error:", error);
