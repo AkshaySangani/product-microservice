@@ -76,7 +76,7 @@ const collaborationRequest = async (req: AuthRequest, res: Response) => {
                         `New collaboration request from ${creator.full_name} for product ${vendorProduct.productId?.title}`
                     );
 
-                    return { message: `Collaboration created for product ${vendorProduct.productId?.title}`, data: {collaboration: newCollaboration, request: newRequest} };
+                    return { message: `Collaboration created for product ${vendorProduct.productId?.title}`, data: { collaboration: newCollaboration, request: newRequest } };
                 } catch (innerError) {
                     console.error("Error in product processing:", innerError);
                     return { error: `Internal error while processing product ${productId}` };
@@ -120,10 +120,10 @@ const getCollaborationList = async (req: AuthRequest, res: Response) => {
             .populate(userRole === 'vendor' ? {
                 path: 'creatorId',
                 select: 'name user_name' // Add the fields you want here
-              } : {
+            } : {
                 path: 'vendorId',
                 select: 'business_name' // Add the fields you want here
-              }) // Populate opposite user
+            }) // Populate opposite user
             .populate('requestId') // 👈 New: include associated Request data
             .skip(skip)
             .limit(limit)
@@ -151,7 +151,7 @@ const requestStatusChange = async (req: AuthRequest, res: Response) => {
     try {
         // -------------------- Fetch Collaboration --------------------
         const collaboration: any = await CollaborationModel.findById(collaborationId);
-        const request : any= await RequestModel.findById(collaboration.requestId);
+        const request: any = await RequestModel.findById(collaboration.requestId);
         if (!collaboration) {
             return sendApiResponse(res, 404, "Collaboration not found");
         }
@@ -167,7 +167,7 @@ const requestStatusChange = async (req: AuthRequest, res: Response) => {
 
         // -------------------- Update Acceptance Flags --------------------
         if (status === "accepted") {
-           request.collaborationStatus = "ACCEPTED";
+            request.collaborationStatus = "ACCEPTED";
             collaboration.collaborationStatus = "PENDING";
         } else if (status === "rejected") {
             request.collaborationStatus = "REJECTED";
@@ -201,7 +201,7 @@ const getCollaborationStatusByProduct = async (req: AuthRequest, res: Response) 
 
         // If the user is a creator, check for a collaboration where they are the creator
         if (userRole === "creator") {
-            const collaboration = await CollaborationModel.findOne({ creatorId: _id, productId });
+            const collaboration = await CollaborationModel.findOne({ creatorId: _id, productId }).populate('requestId');
 
             return sendApiResponse(res, 200, "Collaboration status fetched successfully", {
                 collaboration,
@@ -213,7 +213,7 @@ const getCollaborationStatusByProduct = async (req: AuthRequest, res: Response) 
             if (!creatorId) {
                 return sendApiResponse(res, 400, "Creator id missing");
             }
-            const collaboration = await CollaborationModel.findOne({ vendorId: _id, productId, creatorId });
+            const collaboration = await CollaborationModel.findOne({ vendorId: _id, productId, creatorId }).populate('requestId');
 
             return sendApiResponse(res, 200, "Collaboration status fetched successfully", {
                 collaboration,
@@ -243,12 +243,12 @@ const cancelCollaborationRequest = async (req: AuthRequest, res: Response) => {
 
         // Match collaboration 
         const collaboration = await CollaborationModel.findById(collaborationId)
-        
+
         if (!collaboration) {
             return sendApiResponse(res, 404, "Collaboration not found.");
         }
-        const request : any= await RequestModel.findById(collaboration.requestId);
-        if(!request){
+        const request: any = await RequestModel.findById(collaboration.requestId);
+        if (!request) {
             return sendApiResponse(res, 404, "Request not found.");
         }
 
@@ -262,4 +262,27 @@ const cancelCollaborationRequest = async (req: AuthRequest, res: Response) => {
     }
 };
 
-export { collaborationRequest, getCollaborationList, requestStatusChange, getCollaborationStatusByProduct, cancelCollaborationRequest };
+const getCollaborationById = async (req: AuthRequest, res: Response) => {
+    try {
+        const { collaborationId } = req.params;
+        const collaboration = await CollaborationModel.findById(collaborationId).populate('requestId').populate('productId');
+
+        if (!collaboration) {
+            return sendApiResponse(res, 404, "Collaboration not found");
+        }
+
+        return sendApiResponse(res, 200, "Collaboration fetched successfully", { collaboration });
+    } catch (error: any) {
+        console.error("Collaboration fetch error:", error);
+        return sendApiResponse(res, 500, "Internal server error", { error: error.message });
+    }
+}
+
+export {
+    collaborationRequest,
+    getCollaborationList,
+    requestStatusChange,
+    getCollaborationStatusByProduct,
+    cancelCollaborationRequest,
+    getCollaborationById
+};
