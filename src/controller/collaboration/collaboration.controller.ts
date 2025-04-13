@@ -9,7 +9,7 @@ import { sendNotification } from "../../common/sendNotification";
 const collaborationRequest = async (req: AuthRequest, res: Response) => {
     try {
         const { productIds, creatorId, vendorId } = req.body;
-        const userRole = req.userRole; // Can be "CREATOR" or "VENDOR"
+        const userRole = req.userRole; // Can be "creator" or "vendor"
 
         // Step 1: Validate input
         if (!Array.isArray(productIds) || productIds.length === 0 || !creatorId || !vendorId) {
@@ -23,7 +23,7 @@ const collaborationRequest = async (req: AuthRequest, res: Response) => {
         }
 
         // Step 3: Define who is sending the request
-        const requestFrom = userRole === "VENDOR" ? "VENDOR" : "CREATOR";
+        const requestFrom = userRole === "creator" ? "CREATOR": "VENDOR";
 
         // Step 4: Process each productId separately
         const results = await Promise.all(
