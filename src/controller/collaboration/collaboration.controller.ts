@@ -263,9 +263,19 @@ const cancelCollaborationRequest = async (req: AuthRequest, res: Response) => {
 };
 
 const getCollaborationById = async (req: AuthRequest, res: Response) => {
+    const userRole = req.userRole;
     try {
         const { collaborationId } = req.params;
-        const collaboration = await CollaborationModel.findById(collaborationId).populate('requestId').populate('productId');
+        const collaboration = await CollaborationModel.findById(collaborationId).populate('requestId')
+            .populate('productId')
+            .populate({
+                path: 'creatorId',
+                select: ' user_name profile_image' // Add the fields you want here
+            })
+            .populate({
+                path: 'vendorId',
+                select: 'business_name profile_image' // Add the fields you want here
+            }) // Populate opposite user;
 
         if (!collaboration) {
             return sendApiResponse(res, 404, "Collaboration not found");
