@@ -94,55 +94,131 @@ const collaborationRequest = async (req: AuthRequest, res: Response) => {
 };
 
 const getCollaborationList = async (req: AuthRequest, res: Response) => {
-    const userRole = req.userRole; // User role: "creator" or "vendor"
-    const { _id } = req.user; // Authenticated user ID
-
+    const userRole = req.userRole;
+    const { _id } = req.user;
+  
     try {
-        // Step 1: Pagination setup
-        const page = Number(req.query.page) || 1;
-        const limit = Number(req.query.limit) || 20;
-        const skip = (page - 1) * limit;
-
-        // Step 2: Build query condition based on user role
-        const condition: any = {};
-        if (userRole === "creator") {
-            condition.creatorId = _id;
-        } else if (userRole === "vendor") {
-            condition.vendorId = _id;
-        }
-
-        // Step 3: Fetch collaborations
-        const collaborations = await CollaborationModel.find(condition)
-            .populate({
-                path: 'productId',
-                populate: { path: 'category' } // Product category
-            })
-            .populate(userRole === 'vendor' ? {
-                path: 'creatorId',
-                select: 'name user_name' // Add the fields you want here
-            } : {
-                path: 'vendorId',
-                select: 'business_name' // Add the fields you want here
-            }) // Populate opposite user
-            .populate('requestId') // 👈 New: include associated Request data
-            .skip(skip)
-            .limit(limit)
-            .sort({ createdAt: -1 });
-
-        // Step 4: Count total results for pagination
-        const total = await CollaborationModel.countDocuments(condition);
-
-        // Step 5: Respond with data
-        return sendApiResponse(res, 200, "Collaboration list fetched successfully", {
-            data: collaborations,
-            total
-        });
-
+      const page = Number(req.query.page) || 1;
+      const limit = Number(req.query.limit) || 20;
+      const skip = (page - 1) * limit;
+      const search = (req.query.search as string) || "";
+  
+      // Base match condition
+      const matchStage: any = {};
+      if (userRole === "creator") {
+        matchStage.creatorId = _id;
+      } else if (userRole === "vendor") {
+        matchStage.vendorId = _id;
+      }
+  
+      const pipeline: any[] = [
+        { $match: matchStage },
+  
+        // Join with Product
+        {
+          $lookup: {
+            from: "products",
+            localField: "productId",
+            foreignField: "_id",
+            as: "product",
+          },
+        },
+        { $unwind: "$product" },
+  
+        // Filter by product title
+        ...(search
+          ? [
+              {
+                $match: {
+                  "product.title": { $regex: search, $options: "i" },
+                },
+              },
+            ]
+          : []),
+  
+        // Join with Category inside Product
+        {
+          $lookup: {
+            from: "categories",
+            localField: "product.category",
+            foreignField: "_id",
+            as: "product.category",
+          },
+        },
+        {
+          $unwind: {
+            path: "$product.category",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+  
+        // Join with creator or vendor (based on role)
+        {
+          $lookup: {
+            from: "users", // assuming both vendors and creators are in 'users'
+            localField: userRole === "vendor" ? "creatorId" : "vendorId",
+            foreignField: "_id",
+            as: "userDetails",
+          },
+        },
+        { $unwind: "$userDetails" },
+  
+        // Join request data
+        {
+          $lookup: {
+            from: "requests",
+            localField: "requestId",
+            foreignField: "_id",
+            as: "request",
+          },
+        },
+        { $unwind: { path: "$request", preserveNullAndEmptyArrays: true } },
+  
+        // Pagination
+        { $sort: { createdAt: -1 } },
+        { $skip: skip },
+        { $limit: limit },
+      ];
+  
+      // Run aggregation
+      const collaborations = await CollaborationModel.aggregate(pipeline);
+  
+      // Count total
+      const countPipeline: any[] = [
+        { $match: matchStage },
+        {
+          $lookup: {
+            from: "products",
+            localField: "productId",
+            foreignField: "_id",
+            as: "product"
+          },
+        },
+        { $unwind: "$product" },
+        {
+          $match: {
+            "product.title": { $regex: search, $options: "i" }
+          }
+        },
+        { $count: "total" }
+      ];
+      
+      const countResult = await CollaborationModel.aggregate(countPipeline);
+      const total = countResult[0]?.total || 0;
+      
+  
+      return sendApiResponse(res, 200, "Collaboration list fetched successfully", {
+        data: collaborations,
+        total,
+      });
     } catch (error: any) {
-        console.error("Collaboration list error:", error);
-        return sendApiResponse(res, 500, "Internal server error", { error: error.message });
+      console.error("Collaboration list error:", error);
+      return sendApiResponse(res, 500, "Internal server error", {
+        error: error.message,
+      });
     }
-};
+  };
+  
 
 const requestStatusChange = async (req: AuthRequest, res: Response) => {
     const { collaborationId, status } = req.body;

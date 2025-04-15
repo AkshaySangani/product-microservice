@@ -4,6 +4,7 @@ import { CollaborationModel, ProductModel, RequestModel } from "../../database/m
 import { VendorProductModel } from "../../database/model";
 import { CreatorProductModel } from "../../database/model";
 import { AuthRequest } from "../../types/authRequest";
+import mongoose from "mongoose";
 
 //for creator product list with request and collaboration
 const getProductList = async (req: AuthRequest, res: Response) => {
@@ -26,10 +27,18 @@ const getProductList = async (req: AuthRequest, res: Response) => {
             ];
         }
 
+        // ✅ Handle comma-separated `categories` param
         if (categories) {
-            const categoryArray = Array.isArray(categories) ? categories : [categories];
-            productFilter.categories = { $in: categoryArray };
-        }
+            const categoryArray = typeof categories === "string"
+              ? categories.split(",").map((id) => id.trim())
+              : [];
+          
+            if (categoryArray.length > 0) {
+              // ✅ Cast to ObjectIds
+              const objectIds = categoryArray.map((id) => new mongoose.Types.ObjectId(id));
+              productFilter.category = { $in: objectIds };
+            }
+          }
 
         // -------------------- Fetch Filtered Products with Pagination --------------------
         const productList = await ProductModel.find(productFilter)
@@ -62,7 +71,7 @@ const getProductList = async (req: AuthRequest, res: Response) => {
         // -------------------- Merge Product + Vendor Info + Creator's Request/Collab --------------------
         const finalList = await Promise.all(productList.map(async (product) => {
             const vendorProduct = await VendorProductModel.findOne({ productId: product._id })
-                .populate({ path: 'vendorId', select: '_id business_name'})
+                .populate({ path: 'vendorId', select: '_id business_name' })
                 .lean();
 
             return {

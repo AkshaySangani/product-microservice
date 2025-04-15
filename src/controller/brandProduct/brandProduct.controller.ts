@@ -3,6 +3,7 @@ import sendApiResponse from "../../common";
 import { CollaborationModel, ProductModel, VendorModel, VendorProductModel } from "../../database/model";
 import { AuthRequest } from "../../types/authRequest";
 import { BACKEND_URL } from "../../config";
+import mongoose from "mongoose";
 
 const getBrandList = async (req: Request, res: Response) => {
     try {
@@ -63,7 +64,7 @@ const productListByBrand = async (req: AuthRequest, res: Response) => {
     const { brandId } = req.params;
 
     try {
-        const { page = 1, limit = 10, search, category } = req.query;
+        const { page = 1, limit = 10, search, categories } = req.query;
         const pageNumber = Number(page);
         const limitNumber = Number(limit);
         const skip = (pageNumber - 1) * limitNumber;
@@ -89,10 +90,17 @@ const productListByBrand = async (req: AuthRequest, res: Response) => {
             ];
         }
 
-        if (category) {
-            const categoryArray = Array.isArray(category) ? category : [category];
-            productFilter.categories = { $in: categoryArray };
-        }
+        if (categories) {
+            const categoryArray = typeof categories === "string"
+              ? categories.split(",").map((id) => id.trim())
+              : [];
+          
+            if (categoryArray.length > 0) {
+              // ✅ Cast to ObjectIds
+              const objectIds = categoryArray.map((id) => new mongoose.Types.ObjectId(id));
+              productFilter.category = { $in: objectIds };
+            }
+          }
 
         // 3. Fetch filtered product list with pagination
         const productList = await ProductModel.find(productFilter)
@@ -144,7 +152,7 @@ const brandProductList = async (req: AuthRequest, res: Response) => {
 
     try {
         // Extract pagination and filter query params
-        const { page = 1, limit = 10, search, category } = req.query;
+        const { page = 1, limit = 10, search, categories } = req.query;
         const pageNumber = Number(page);
         const limitNumber = Number(limit);
         const skip = (pageNumber - 1) * limitNumber;
@@ -171,10 +179,17 @@ const brandProductList = async (req: AuthRequest, res: Response) => {
         }
 
         // Apply category filter
-        if (category) {
-            const categoryArray = Array.isArray(category) ? category : [category];
-            productFilter.categories = { $in: categoryArray };
-        }
+        if (categories) {
+            const categoryArray = typeof categories === "string"
+              ? categories.split(",").map((id) => id.trim())
+              : [];
+          
+            if (categoryArray.length > 0) {
+              // ✅ Cast to ObjectIds
+              const objectIds = categoryArray.map((id) => new mongoose.Types.ObjectId(id));
+              productFilter.category = { $in: objectIds };
+            }
+          }
 
         // Fetch filtered products with pagination
         const productList = await ProductModel.find(productFilter)
