@@ -49,7 +49,7 @@ export const commonAuthMiddleware = async (req: AuthRequest, res: Response, next
 
         // Attach user info to request object
         req.user = user;
-        req.userRole = account.type; // Store role for further authorization checks if needed
+        req.userRole = account?.type || ""; // Store role for further authorization checks if needed
 
         // Proceed to the next middleware or route handler
         next();
