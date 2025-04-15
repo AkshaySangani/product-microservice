@@ -98,23 +98,35 @@ const getCollaborationList = async (req: AuthRequest, res: Response) => {
     const { _id } = req.user;
   
     try {
+      // ---------------- Pagination & Search Setup ----------------
       const page = Number(req.query.page) || 1;
       const limit = Number(req.query.limit) || 20;
       const skip = (page - 1) * limit;
-      const search = (req.query.search as string) || "";
+      const search = (req.query.search as string)?.trim() || "";
+      // Get collaborationStatus from query if passed (e.g., approved, pending, etc.)
+      const collaborationStatus = (req.query.collaborationStatus as string)?.trim();
   
-      // Base match condition
+      console.log("Search parameter:", search);
+      console.log("Collaboration status parameter:", collaborationStatus);
+  
+      // ---------------- Base Filter: Filter by role and collaboration status ----------------
       const matchStage: any = {};
       if (userRole === "creator") {
         matchStage.creatorId = _id;
       } else if (userRole === "vendor") {
         matchStage.vendorId = _id;
       }
+      // Add collaboration status filter if provided
+      if (collaborationStatus) {
+        matchStage.collaborationStatus = collaborationStatus;
+      }
   
+      // ---------------- Main Aggregation Pipeline ----------------
       const pipeline: any[] = [
+        // Stage 1: Filter collaborations based on role (and status if given)
         { $match: matchStage },
   
-        // Join with Product
+        // Stage 2: Lookup product details from "products"
         {
           $lookup: {
             from: "products",
@@ -123,9 +135,10 @@ const getCollaborationList = async (req: AuthRequest, res: Response) => {
             as: "product",
           },
         },
+        // Unwind the product array; drop collaborations with no product (so that search on product can work)
         { $unwind: "$product" },
   
-        // Filter by product title
+        // Stage 3: If a search term is provided, match based on product.title (case-insensitive)
         ...(search
           ? [
               {
@@ -136,7 +149,7 @@ const getCollaborationList = async (req: AuthRequest, res: Response) => {
             ]
           : []),
   
-        // Join with Category inside Product
+        // Stage 4: Lookup category details from "categories" using product.category
         {
           $lookup: {
             from: "categories",
@@ -152,18 +165,23 @@ const getCollaborationList = async (req: AuthRequest, res: Response) => {
           },
         },
   
-        // Join with creator or vendor (based on role)
+        // Stage 5: Lookup the opposite user (for vendor, this would be the creator; for creator, it is the vendor)
         {
           $lookup: {
-            from: "users", // assuming both vendors and creators are in 'users'
+            from: "users",
             localField: userRole === "vendor" ? "creatorId" : "vendorId",
             foreignField: "_id",
             as: "userDetails",
           },
         },
-        { $unwind: "$userDetails" },
+        {
+          $unwind: {
+            path: "$userDetails",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
   
-        // Join request data
+        // Stage 6: Lookup associated request data from "requests"
         {
           $lookup: {
             from: "requests",
@@ -172,18 +190,36 @@ const getCollaborationList = async (req: AuthRequest, res: Response) => {
             as: "request",
           },
         },
-        { $unwind: { path: "$request", preserveNullAndEmptyArrays: true } },
+        {
+          $unwind: {
+            path: "$request",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
   
-        // Pagination
+        // Stage 7: Group by the unique collaboration _id to eliminate duplicates from multiple lookups
+        {
+          $group: {
+            _id: "$_id",
+            doc: { $first: "$$ROOT" },
+          },
+        },
+        {
+          $replaceRoot: { newRoot: "$doc" },
+        },
+  
+        // Stage 8: Sort and apply pagination (skip and limit)
         { $sort: { createdAt: -1 } },
         { $skip: skip },
         { $limit: limit },
       ];
   
-      // Run aggregation
+      // Execute the main aggregation pipeline.
       const collaborations = await CollaborationModel.aggregate(pipeline);
+      console.log("Collaboration result count (after grouping):", collaborations.length);
   
-      // Count total
+      // ---------------- Count Pipeline ----------------
+      // To correctly count the unique collaborations matching the filter criteria, we use a similar pipeline:
       const countPipeline: any[] = [
         { $match: matchStage },
         {
@@ -191,35 +227,42 @@ const getCollaborationList = async (req: AuthRequest, res: Response) => {
             from: "products",
             localField: "productId",
             foreignField: "_id",
-            as: "product"
+            as: "product",
           },
         },
         { $unwind: "$product" },
+        ...(search
+          ? [
+              {
+                $match: {
+                  "product.title": { $regex: search, $options: "i" },
+                },
+              },
+            ]
+          : []),
         {
-          $match: {
-            "product.title": { $regex: search, $options: "i" }
-          }
+          $group: {
+            _id: "$_id",
+          },
         },
-        { $count: "total" }
+        { $count: "total" },
       ];
-      
+  
       const countResult = await CollaborationModel.aggregate(countPipeline);
       const total = countResult[0]?.total || 0;
-      
   
       return sendApiResponse(res, 200, "Collaboration list fetched successfully", {
         data: collaborations,
         total,
       });
+  
     } catch (error: any) {
       console.error("Collaboration list error:", error);
-      return sendApiResponse(res, 500, "Internal server error", {
-        error: error.message,
-      });
+      return sendApiResponse(res, 500, "Internal server error", { error: error.message });
     }
   };
   
-
+  
 const requestStatusChange = async (req: AuthRequest, res: Response) => {
     const { collaborationId, status } = req.body;
     const { _id, userRole } = req.user; // Logged-in user's ID and role
