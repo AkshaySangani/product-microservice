@@ -94,7 +94,7 @@ const collaborationRequest = async (req: AuthRequest, res: Response) => {
 };
 
 const getCollaborationList = async (req: AuthRequest, res: Response) => {
-    const userRole = req.userRole;
+    const userRole = req.userRole; // "vendor" or "creator"
     const { _id } = req.user;
   
     try {
@@ -103,30 +103,29 @@ const getCollaborationList = async (req: AuthRequest, res: Response) => {
       const limit = Number(req.query.limit) || 20;
       const skip = (page - 1) * limit;
       const search = (req.query.search as string)?.trim() || "";
-      // Get collaborationStatus from query if passed (e.g., approved, pending, etc.)
+      // Optional collaborationStatus filter from query
       const collaborationStatus = (req.query.collaborationStatus as string)?.trim();
   
       console.log("Search parameter:", search);
       console.log("Collaboration status parameter:", collaborationStatus);
   
-      // ---------------- Base Filter: Filter by role and collaboration status ----------------
+      // ---------------- Base Filter: Role and collaborationStatus ----------------
       const matchStage: any = {};
       if (userRole === "creator") {
         matchStage.creatorId = _id;
       } else if (userRole === "vendor") {
         matchStage.vendorId = _id;
       }
-      // Add collaboration status filter if provided
       if (collaborationStatus) {
         matchStage.collaborationStatus = collaborationStatus;
       }
   
       // ---------------- Main Aggregation Pipeline ----------------
       const pipeline: any[] = [
-        // Stage 1: Filter collaborations based on role (and status if given)
+        // 1. Filter by base criteria (role and status)
         { $match: matchStage },
   
-        // Stage 2: Lookup product details from "products"
+        // 2. Lookup associated product details from "products"
         {
           $lookup: {
             from: "products",
@@ -135,10 +134,10 @@ const getCollaborationList = async (req: AuthRequest, res: Response) => {
             as: "product",
           },
         },
-        // Unwind the product array; drop collaborations with no product (so that search on product can work)
+        // Unwind the product array; drop collaborations with no product.
         { $unwind: "$product" },
   
-        // Stage 3: If a search term is provided, match based on product.title (case-insensitive)
+        // 3. If a search term is provided, match by product title (case-insensitive)
         ...(search
           ? [
               {
@@ -149,7 +148,7 @@ const getCollaborationList = async (req: AuthRequest, res: Response) => {
             ]
           : []),
   
-        // Stage 4: Lookup category details from "categories" using product.category
+        // 4. Lookup category details from "categories" using product.category
         {
           $lookup: {
             from: "categories",
@@ -165,12 +164,32 @@ const getCollaborationList = async (req: AuthRequest, res: Response) => {
           },
         },
   
-        // Stage 5: Lookup the opposite user (for vendor, this would be the creator; for creator, it is the vendor)
+        // 5. Lookup the related user details using an aggregation pipeline so we can convert the ID to ObjectId.
+        //    For vendor login, use creatorId; for creator login, use vendorId.
         {
           $lookup: {
-            from: "users",
-            localField: userRole === "vendor" ? "creatorId" : "vendorId",
-            foreignField: "_id",
+            from: userRole === "vendor" ? "creators" : "vendors",
+            let: { 
+              lookupId: {
+                $toObjectId: userRole === "vendor" ? "$creatorId" : "$vendorId"
+              }
+            },
+            pipeline: [
+              {
+                $match: {
+                  $expr: { $eq: ["$_id", "$$lookupId"] },
+                },
+              },
+              // Project the needed fields only
+              {
+                $project: {
+                  user_name: 1,
+                  business_name: 1,
+                  profile_image: 1,
+                  _id: 1,
+                },
+              },
+            ],
             as: "userDetails",
           },
         },
@@ -181,7 +200,7 @@ const getCollaborationList = async (req: AuthRequest, res: Response) => {
           },
         },
   
-        // Stage 6: Lookup associated request data from "requests"
+        // 6. Lookup associated request details from "requests"
         {
           $lookup: {
             from: "requests",
@@ -197,7 +216,7 @@ const getCollaborationList = async (req: AuthRequest, res: Response) => {
           },
         },
   
-        // Stage 7: Group by the unique collaboration _id to eliminate duplicates from multiple lookups
+        // 7. Group by the unique collaboration _id to remove duplicates created by lookups.
         {
           $group: {
             _id: "$_id",
@@ -208,7 +227,37 @@ const getCollaborationList = async (req: AuthRequest, res: Response) => {
           $replaceRoot: { newRoot: "$doc" },
         },
   
-        // Stage 8: Sort and apply pagination (skip and limit)
+        // 8. Add a new field "fromUser" based on the logged-in user role.
+        //    - If vendor is logged in: return creator's user_name and profile_image.
+        //    - If creator is logged in: return vendor's business_name and profile_image.
+        ...(userRole === "vendor"
+          ? [
+              {
+                $addFields: {
+                  fromUser: {
+                    _id: "$userDetails._id",
+                    user_name: "$userDetails.user_name",
+                    profile_image: "$userDetails.profile_image",
+                  },
+                },
+              },
+            ]
+          : [
+              {
+                $addFields: {
+                  fromUser: {
+                    _id: "$userDetails._id",
+                    business_name: "$userDetails.business_name",
+                    profile_image: "$userDetails.profile_image",
+                  },
+                },
+              },
+            ]),
+  
+        // 9. Optionally remove the userDetails field.
+        { $project: { userDetails: 0 } },
+  
+        // 10. Sort by creation date in descending order and apply pagination.
         { $sort: { createdAt: -1 } },
         { $skip: skip },
         { $limit: limit },
@@ -219,7 +268,7 @@ const getCollaborationList = async (req: AuthRequest, res: Response) => {
       console.log("Collaboration result count (after grouping):", collaborations.length);
   
       // ---------------- Count Pipeline ----------------
-      // To correctly count the unique collaborations matching the filter criteria, we use a similar pipeline:
+      // The count pipeline is similar but simpler – we only join products and apply the search.
       const countPipeline: any[] = [
         { $match: matchStage },
         {
@@ -241,9 +290,7 @@ const getCollaborationList = async (req: AuthRequest, res: Response) => {
             ]
           : []),
         {
-          $group: {
-            _id: "$_id",
-          },
+          $group: { _id: "$_id" },
         },
         { $count: "total" },
       ];
@@ -255,7 +302,6 @@ const getCollaborationList = async (req: AuthRequest, res: Response) => {
         data: collaborations,
         total,
       });
-  
     } catch (error: any) {
       console.error("Collaboration list error:", error);
       return sendApiResponse(res, 500, "Internal server error", { error: error.message });
