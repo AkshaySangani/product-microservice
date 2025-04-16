@@ -23,7 +23,7 @@ const collaborationRequest = async (req: AuthRequest, res: Response) => {
         }
 
         // Step 3: Define who is sending the request
-        const requestFrom = userRole === "creator" ? "CREATOR": "VENDOR";
+        const requestFrom = userRole === "creator" ? "CREATOR" : "VENDOR";
 
         // Step 4: Process each productId separately
         const results = await Promise.all(
@@ -96,219 +96,213 @@ const collaborationRequest = async (req: AuthRequest, res: Response) => {
 const getCollaborationList = async (req: AuthRequest, res: Response) => {
     const userRole = req.userRole; // "vendor" or "creator"
     const { _id } = req.user;
-  
+
     try {
-      // ---------------- Pagination & Search Setup ----------------
-      const page = Number(req.query.page) || 1;
-      const limit = Number(req.query.limit) || 20;
-      const skip = (page - 1) * limit;
-      const search = (req.query.search as string)?.trim() || "";
-      // Optional collaborationStatus filter from query
-      const collaborationStatus = (req.query.collaborationStatus as string)?.trim();
-  
-      console.log("Search parameter:", search);
-      console.log("Collaboration status parameter:", collaborationStatus);
-  
-      // ---------------- Base Filter: Role and collaborationStatus ----------------
-      const matchStage: any = {};
-      if (userRole === "creator") {
-        matchStage.creatorId = _id;
-      } else if (userRole === "vendor") {
-        matchStage.vendorId = _id;
-      }
-      if (collaborationStatus) {
-        matchStage.collaborationStatus = collaborationStatus;
-      }
-  
-      // ---------------- Main Aggregation Pipeline ----------------
-      const pipeline: any[] = [
-        // 1. Filter by base criteria (role and status)
-        { $match: matchStage },
-  
-        // 2. Lookup associated product details from "products"
-        {
-          $lookup: {
-            from: "products",
-            localField: "productId",
-            foreignField: "_id",
-            as: "product",
-          },
-        },
-        // Unwind the product array; drop collaborations with no product.
-        { $unwind: "$product" },
-  
-        // 3. If a search term is provided, match by product title (case-insensitive)
-        ...(search
-          ? [
-              {
-                $match: {
-                  "product.title": { $regex: search, $options: "i" },
+        // ---------------- Pagination & Search Setup ----------------
+        const page = Number(req.query.page) || 1;
+        const limit = Number(req.query.limit) || 20;
+        const skip = (page - 1) * limit;
+        const search = (req.query.search as string)?.trim() || "";
+        // Optional collaborationStatus filter from query
+        const collaborationStatus = (req.query.collaborationStatus as string)?.trim();
+
+        console.log("Search parameter:", search);
+        console.log("Collaboration status parameter:", collaborationStatus);
+
+        // ---------------- Base Filter: Role and collaborationStatus ----------------
+        const matchStage: any = {};
+        if (userRole === "creator") {
+            matchStage.creatorId = _id;
+        } else if (userRole === "vendor") {
+            matchStage.vendorId = _id;
+        }
+        if (collaborationStatus) {
+            matchStage.collaborationStatus = collaborationStatus;
+        }
+
+        // ---------------- Main Aggregation Pipeline ----------------
+        const pipeline: any[] = [
+            // 1. Filter by base criteria (role and status)
+            { $match: matchStage },
+
+            // 2. Lookup associated product details from "products"
+            {
+                $lookup: {
+                    from: "products",
+                    localField: "productId",
+                    foreignField: "_id",
+                    as: "product",
                 },
-              },
-            ]
-          : []),
-  
-        // 4. Lookup category details from "categories" using product.category
-        {
-          $lookup: {
-            from: "categories",
-            localField: "product.category",
-            foreignField: "_id",
-            as: "product.category",
-          },
-        },
-        {
-          $unwind: {
-            path: "$product.category",
-            preserveNullAndEmptyArrays: true,
-          },
-        },
-  
-        // 5. Lookup the related user details using an aggregation pipeline so we can convert the ID to ObjectId.
-        //    For vendor login, use creatorId; for creator login, use vendorId.
-        {
-          $lookup: {
-            from: userRole === "vendor" ? "creators" : "vendors",
-            let: { 
-              lookupId: {
-                $toObjectId: userRole === "vendor" ? "$creatorId" : "$vendorId"
-              }
             },
-            pipeline: [
-              {
-                $match: {
-                  $expr: { $eq: ["$_id", "$$lookupId"] },
+            // Unwind the product array; drop collaborations with no product.
+            { $unwind: "$product" },
+
+            // 3. If a search term is provided, match by product title (case-insensitive)
+            ...(search
+                ? [
+                    {
+                        $match: {
+                            "product.title": { $regex: search, $options: "i" },
+                        },
+                    },
+                ]
+                : []),
+
+            // 4. Lookup category details from "categories" using product.category
+            {
+                $lookup: {
+                    from: "categories",
+                    localField: "product.category", // <-- this is an array
+                    foreignField: "_id",
+                    as: "product.categories", // <-- new field to store the array of matched categories
                 },
-              },
-              // Project the needed fields only
-              {
-                $project: {
-                  user_name: 1,
-                  business_name: 1,
-                  profile_image: 1,
-                  _id: 1,
+            },
+
+            // 5. Lookup the related user details using an aggregation pipeline so we can convert the ID to ObjectId.
+            //    For vendor login, use creatorId; for creator login, use vendorId.
+            {
+                $lookup: {
+                    from: userRole === "vendor" ? "creators" : "vendors",
+                    let: {
+                        lookupId: {
+                            $toObjectId: userRole === "vendor" ? "$creatorId" : "$vendorId"
+                        }
+                    },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: { $eq: ["$_id", "$$lookupId"] },
+                            },
+                        },
+                        // Project the needed fields only
+                        {
+                            $project: {
+                                user_name: 1,
+                                business_name: 1,
+                                profile_image: 1,
+                                _id: 1,
+                            },
+                        },
+                    ],
+                    as: "userDetails",
                 },
-              },
-            ],
-            as: "userDetails",
-          },
-        },
-        {
-          $unwind: {
-            path: "$userDetails",
-            preserveNullAndEmptyArrays: true,
-          },
-        },
-  
-        // 6. Lookup associated request details from "requests"
-        {
-          $lookup: {
-            from: "requests",
-            localField: "requestId",
-            foreignField: "_id",
-            as: "request",
-          },
-        },
-        {
-          $unwind: {
-            path: "$request",
-            preserveNullAndEmptyArrays: true,
-          },
-        },
-  
-        // 7. Group by the unique collaboration _id to remove duplicates created by lookups.
-        {
-          $group: {
-            _id: "$_id",
-            doc: { $first: "$$ROOT" },
-          },
-        },
-        {
-          $replaceRoot: { newRoot: "$doc" },
-        },
-  
-        // 8. Add a new field "fromUser" based on the logged-in user role.
-        //    - If vendor is logged in: return creator's user_name and profile_image.
-        //    - If creator is logged in: return vendor's business_name and profile_image.
-        ...(userRole === "vendor"
-          ? [
-              {
-                $addFields: {
-                  fromUser: {
-                    _id: "$userDetails._id",
-                    user_name: "$userDetails.user_name",
-                    profile_image: "$userDetails.profile_image",
-                  },
+            },
+            {
+                $unwind: {
+                    path: "$userDetails",
+                    preserveNullAndEmptyArrays: true,
                 },
-              },
-            ]
-          : [
-              {
-                $addFields: {
-                  fromUser: {
-                    _id: "$userDetails._id",
-                    business_name: "$userDetails.business_name",
-                    profile_image: "$userDetails.profile_image",
-                  },
+            },
+
+            // 6. Lookup associated request details from "requests"
+            {
+                $lookup: {
+                    from: "requests",
+                    localField: "requestId",
+                    foreignField: "_id",
+                    as: "request",
                 },
-              },
-            ]),
-  
-        // 9. Optionally remove the userDetails field.
-        { $project: { userDetails: 0 } },
-  
-        // 10. Sort by creation date in descending order and apply pagination.
-        { $sort: { createdAt: -1 } },
-        { $skip: skip },
-        { $limit: limit },
-      ];
-  
-      // Execute the main aggregation pipeline.
-      const collaborations = await CollaborationModel.aggregate(pipeline);
-      console.log("Collaboration result count (after grouping):", collaborations.length);
-  
-      // ---------------- Count Pipeline ----------------
-      // The count pipeline is similar but simpler – we only join products and apply the search.
-      const countPipeline: any[] = [
-        { $match: matchStage },
-        {
-          $lookup: {
-            from: "products",
-            localField: "productId",
-            foreignField: "_id",
-            as: "product",
-          },
-        },
-        { $unwind: "$product" },
-        ...(search
-          ? [
-              {
-                $match: {
-                  "product.title": { $regex: search, $options: "i" },
+            },
+            {
+                $unwind: {
+                    path: "$request",
+                    preserveNullAndEmptyArrays: true,
                 },
-              },
-            ]
-          : []),
-        {
-          $group: { _id: "$_id" },
-        },
-        { $count: "total" },
-      ];
-  
-      const countResult = await CollaborationModel.aggregate(countPipeline);
-      const total = countResult[0]?.total || 0;
-  
-      return sendApiResponse(res, 200, "Collaboration list fetched successfully", {
-        data: collaborations,
-        total,
-      });
+            },
+
+            // 7. Group by the unique collaboration _id to remove duplicates created by lookups.
+            {
+                $group: {
+                    _id: "$_id",
+                    doc: { $first: "$$ROOT" },
+                },
+            },
+            {
+                $replaceRoot: { newRoot: "$doc" },
+            },
+
+            // 8. Add a new field "fromUser" based on the logged-in user role.
+            //    - If vendor is logged in: return creator's user_name and profile_image.
+            //    - If creator is logged in: return vendor's business_name and profile_image.
+            ...(userRole === "vendor"
+                ? [
+                    {
+                        $addFields: {
+                            fromUser: {
+                                _id: "$userDetails._id",
+                                user_name: "$userDetails.user_name",
+                                profile_image: "$userDetails.profile_image",
+                            },
+                        },
+                    },
+                ]
+                : [
+                    {
+                        $addFields: {
+                            fromUser: {
+                                _id: "$userDetails._id",
+                                business_name: "$userDetails.business_name",
+                                profile_image: "$userDetails.profile_image",
+                            },
+                        },
+                    },
+                ]),
+
+            // 9. Optionally remove the userDetails field.
+            { $project: { userDetails: 0 } },
+
+            // 10. Sort by creation date in descending order and apply pagination.
+            { $sort: { createdAt: -1 } },
+            { $skip: skip },
+            { $limit: limit },
+        ];
+
+        // Execute the main aggregation pipeline.
+        const collaborations = await CollaborationModel.aggregate(pipeline);
+        console.log("Collaboration result count (after grouping):", collaborations.length);
+
+        // ---------------- Count Pipeline ----------------
+        // The count pipeline is similar but simpler – we only join products and apply the search.
+        const countPipeline: any[] = [
+            { $match: matchStage },
+            {
+                $lookup: {
+                    from: "products",
+                    localField: "productId",
+                    foreignField: "_id",
+                    as: "product",
+                },
+            },
+            { $unwind: "$product" },
+            ...(search
+                ? [
+                    {
+                        $match: {
+                            "product.title": { $regex: search, $options: "i" },
+                        },
+                    },
+                ]
+                : []),
+            {
+                $group: { _id: "$_id" },
+            },
+            { $count: "total" },
+        ];
+
+        const countResult = await CollaborationModel.aggregate(countPipeline);
+        const total = countResult[0]?.total || 0;
+
+        return sendApiResponse(res, 200, "Collaboration list fetched successfully", {
+            data: collaborations,
+            total,
+        });
     } catch (error: any) {
-      console.error("Collaboration list error:", error);
-      return sendApiResponse(res, 500, "Internal server error", { error: error.message });
+        console.error("Collaboration list error:", error);
+        return sendApiResponse(res, 500, "Internal server error", { error: error.message });
     }
-  };
-  
-  
+};
+
+
 const requestStatusChange = async (req: AuthRequest, res: Response) => {
     const { collaborationId, status } = req.body;
     const { _id, userRole } = req.user; // Logged-in user's ID and role
@@ -428,7 +422,6 @@ const cancelCollaborationRequest = async (req: AuthRequest, res: Response) => {
 };
 
 const getCollaborationById = async (req: AuthRequest, res: Response) => {
-    const userRole = req.userRole;
     try {
         const { collaborationId } = req.params;
         const collaboration = await CollaborationModel.findById(collaborationId).populate('requestId')
