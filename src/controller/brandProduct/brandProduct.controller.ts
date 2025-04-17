@@ -58,7 +58,6 @@ const getBrandList = async (req: Request, res: Response) => {
     }
 };
 
-
 const productListByBrand = async (req: AuthRequest, res: Response) => {
     const { _id: creatorId } = req.user;
     const { brandId } = req.params;
@@ -92,15 +91,15 @@ const productListByBrand = async (req: AuthRequest, res: Response) => {
 
         if (categories) {
             const categoryArray = typeof categories === "string"
-              ? categories.split(",").map((id) => id.trim())
-              : [];
-          
+                ? categories.split(",").map((id) => id.trim())
+                : [];
+
             if (categoryArray.length > 0) {
-              // ✅ Cast to ObjectIds
-              const objectIds = categoryArray.map((id) => new mongoose.Types.ObjectId(id));
-              productFilter.category = { $in: objectIds };
+                // ✅ Cast to ObjectIds
+                const objectIds = categoryArray.map((id) => new mongoose.Types.ObjectId(id));
+                productFilter.category = { $in: objectIds };
             }
-          }
+        }
 
         // 3. Fetch filtered product list with pagination
         const productList = await ProductModel.find(productFilter)
@@ -146,16 +145,19 @@ const productListByBrand = async (req: AuthRequest, res: Response) => {
     }
 };
 
-
+//My product list 
 const brandProductList = async (req: AuthRequest, res: Response) => {
     const { _id: brandId } = req.user; // Get brand ID from authenticated user
 
     try {
         // Extract pagination and filter query params
-        const { page = 1, limit = 10, search, categories } = req.query;
-        const pageNumber = Number(page);
-        const limitNumber = Number(limit);
+        const { page, limit, search, categories } = req.query;
+
+        const isPaginationEnabled = page !== undefined && limit !== undefined;
+        const pageNumber = Number(page) || 1;
+        const limitNumber = Number(limit) || 10;
         const skip = (pageNumber - 1) * limitNumber;
+
 
         // Verify if the brand/vendor exists
         const brand = await VendorModel.findById(brandId);
@@ -181,22 +183,23 @@ const brandProductList = async (req: AuthRequest, res: Response) => {
         // Apply category filter
         if (categories) {
             const categoryArray = typeof categories === "string"
-              ? categories.split(",").map((id) => id.trim())
-              : [];
-          
-            if (categoryArray.length > 0) {
-              // ✅ Cast to ObjectIds
-              const objectIds = categoryArray.map((id) => new mongoose.Types.ObjectId(id));
-              productFilter.category = { $in: objectIds };
-            }
-          }
+                ? categories.split(",").map((id) => id.trim())
+                : [];
 
-        // Fetch filtered products with pagination
-        const productList = await ProductModel.find(productFilter)
-            .skip(skip)
-            .limit(limitNumber)
-            .populate("category")
-            .lean();
+            if (categoryArray.length > 0) {
+                // ✅ Cast to ObjectIds
+                const objectIds = categoryArray.map((id) => new mongoose.Types.ObjectId(id));
+                productFilter.category = { $in: objectIds };
+            }
+        }
+
+        // Query builder
+        const query = ProductModel.find(productFilter).populate("category").lean();
+        if (isPaginationEnabled) {
+            query.skip(skip).limit(limitNumber);
+        }
+
+        const productList = await query;
 
         // Get total count of filtered results
         const count = await ProductModel.countDocuments(productFilter);
@@ -259,7 +262,7 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
                 title: productData.title,
                 sku: productData.handle,
                 description: productData.description || "",
-                media: productData.media?.nodes?.length >0  ? productData.media?.nodes.map((item:any)=>item?.image?.url) : [],
+                media: productData.media?.nodes?.length > 0 ? productData.media?.nodes.map((item: any) => item?.image?.url) : [],
                 channelName: channelName,
                 category: categories,
                 tags: productData.tags || [],
