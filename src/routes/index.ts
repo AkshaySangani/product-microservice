@@ -6,6 +6,7 @@ import { creatorProductRouter } from './creatorProduct';
 import { brandProductRouter } from './brandProduct';
 import { collaborationRouter } from './collabration';
 import { utmRouter } from './utm';
+import { campaignRouter } from './campaign';
 
 const router = Router()
 
@@ -22,5 +23,7 @@ router.use('/vendor-product', brandProductRouter)
 router.use('/collaboration', collaborationRouter)
 
 router.use('/utm', utmRouter)
+
+router.use('/campaign', campaignRouter)
 
 export { router }

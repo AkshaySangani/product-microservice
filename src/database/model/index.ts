@@ -10,6 +10,7 @@ import AccountSchema from "../../../../shared-models/src/models/account";
 import CollaborationSchema from "../../../../shared-models/src/models/collaboration";
 import ChannelSchema from "../../../../shared-models/src/models/channel";
 import RequestSchema from "../../../../shared-models/src/models/request";
+import CampaignSchema from "../../../../shared-models/src/models/campaign";
 
 const ProductModel = mongoose.model("Product", ProductSchema);
 const CategoryModel = mongoose.model("Category", CategorySchema);
@@ -22,6 +23,7 @@ const AccountModel = mongoose.model("Account", AccountSchema);
 const CollaborationModel = mongoose.model("Collaboration", CollaborationSchema);
 const ChannelModel = mongoose.model("Channel", ChannelSchema);
 const RequestModel = mongoose.model("Request", RequestSchema);
+const CampaignModel = mongoose.model("Campaign", CampaignSchema);
 
 export {
     ProductModel,
@@ -34,5 +36,6 @@ export {
     AccountModel,
     CollaborationModel,
     ChannelModel,
-    RequestModel
+    RequestModel,
+    CampaignModel
 };
