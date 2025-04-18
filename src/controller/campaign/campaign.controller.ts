@@ -189,7 +189,7 @@ export const updateCampaign = async (req: AuthRequest, res: Response) => {
             );
             const imageResults = await Promise.all(imageUploadPromises);
             const imageUrls = imageResults.map((res) => res.url).filter(Boolean);
-           
+
             if (imageUrls.length) {
                 updateFields.imageUrls = [...(existingCampaign?.imageUrls || []), ...imageUrls];
             }
@@ -248,24 +248,64 @@ export const updateCampaign = async (req: AuthRequest, res: Response) => {
 };
 
 export const getCampaignById = async (req: AuthRequest, res: Response) => {
-    try{
+    try {
         const campaignId = req.params.campaignId;
         const campaign = await CampaignModel.findById(campaignId).populate("productId");
 
-        if(!campaign){
+        if (!campaign) {
             return sendApiResponse(res, 404, "Campaign not found.");
         }
 
         return sendApiResponse(res, 200, "Campaign fetched successfully", {
             data: campaign,
         });
-    }catch(error:any){
+    } catch (error: any) {
         console.error("get campaign by id error:", error);
         return sendApiResponse(res, 500, "Internal server error", {
             error: error.message,
         });
     }
 };
+
+export const getCampaignList = async (req: AuthRequest, res: Response) => {
+    try {
+      const { search = "", status, limit = 20, page = 1 } = req.query;
+      const { _id: vendorId } = req.user;
+  
+      const query: any = {
+        vendorId,
+      };
+  
+      // Search by campaign name (case-insensitive)
+      if (search && typeof search === "string") {
+        query.name = { $regex: search, $options: "i" };
+      }
+  
+      // Filter by status
+      if (status && typeof status === "string") {
+        query.status = status.toUpperCase(); // Ensure status like "ACTIVE"
+      }
+  
+      const campaigns = await CampaignModel.find(query)
+        .populate("productId")
+        .skip((+page - 1) * +limit)
+        .limit(+limit)
+        .sort({ createdAt: -1 });
+  
+      const count= await CampaignModel.countDocuments(query);
+  
+      return sendApiResponse(res, 200, "Campaigns fetched successfully", {
+         campaigns,
+         count,
+        }
+      );
+    } catch (error: any) {
+      console.error("search campaigns error:", error);
+      return sendApiResponse(res, 500, "Internal server error", {
+        error: error.message,
+      });
+    }
+  };
 
 export const updateCampaignStatuses = async () => {
     try {
