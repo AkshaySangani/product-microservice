@@ -80,7 +80,7 @@ const getProductList = async (req: AuthRequest, res: Response) => {
     // -------------------- Merge Product + Vendor Info + Creator's Request/Collab --------------------
     const finalList = await Promise.all(
       productList.map(async (product) => {
-        const vendorProduct: any = await VendorProductModel.findOne({
+        const vendorProduct = await VendorProductModel.findOne({
           productId: product._id,
         })
           .populate({
@@ -91,11 +91,7 @@ const getProductList = async (req: AuthRequest, res: Response) => {
 
         return {
           ...product,
-          vendor: {
-            _id: vendorProduct?.vendorId,
-            business_name: vendorProduct?.vendorId?.business_name,
-            profile_image: vendorProduct?.vendorId?.profile_image,
-          },
+          vendor: vendorProduct?.vendorId || null,
           request: requestMap.get(product._id.toString()) || null,
           collaboration: collaborationMap.get(product._id.toString()) || null,
         };
