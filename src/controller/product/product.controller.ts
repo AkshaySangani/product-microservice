@@ -1,6 +1,10 @@
 import { Request, Response } from "express";
 import sendApiResponse from "../../common";
-import { CollaborationModel, ProductModel, RequestModel } from "../../database/model";
+import {
+  CollaborationModel,
+  ProductModel,
+  RequestModel,
+} from "../../database/model";
 import { VendorProductModel } from "../../database/model";
 import { CreatorProductModel } from "../../database/model";
 import { AuthRequest } from "../../types/authRequest";
@@ -8,113 +12,132 @@ import mongoose from "mongoose";
 
 //for creator product list with request and collaboration
 const getProductList = async (req: AuthRequest, res: Response) => {
-    try {
-        const { _id: creatorId } = req.user;
+  try {
+    const { _id: creatorId } = req.user;
 
-        // -------------------- Extract and Prepare Query Params --------------------
-        const { page = 1, limit = 10, categories, search } = req.query;
-        const pageNumber = Number(page);
-        const limitNumber = Number(limit);
-        const skip = (pageNumber - 1) * limitNumber;
+    // -------------------- Extract and Prepare Query Params --------------------
+    const { page = 1, limit = 10, categories, search } = req.query;
+    const pageNumber = Number(page);
+    const limitNumber = Number(limit);
+    const skip = (pageNumber - 1) * limitNumber;
 
-        // -------------------- Build Product Filters --------------------
-        let productFilter: any = {};
+    // -------------------- Build Product Filters --------------------
+    let productFilter: any = {};
 
-        if (search) {
-            productFilter.$or = [
-                { title: { $regex: search, $options: "i" } },
-                { tags: { $in: [new RegExp(search as string, "i")] } }
-            ];
-        }
-
-        // ✅ Handle comma-separated `categories` param
-        if (categories) {
-            const categoryArray = typeof categories === "string"
-              ? categories.split(",").map((id) => id.trim())
-              : [];
-          
-            if (categoryArray.length > 0) {
-              // ✅ Cast to ObjectIds
-              const objectIds = categoryArray.map((id) => new mongoose.Types.ObjectId(id));
-              productFilter.category = { $in: objectIds };
-            }
-          }
-
-        // -------------------- Fetch Filtered Products with Pagination --------------------
-        const productList = await ProductModel.find(productFilter)
-            .skip(skip)
-            .limit(limitNumber)
-            .populate("category")
-            .lean();
-
-        const productIds = productList.map(p => p._id);
-
-        // -------------------- Fetch Requests & Collaborations by This Creator --------------------
-        const [requests, collaborations] = await Promise.all([
-            RequestModel.find({
-                creatorId,
-                productId: { $in: productIds }
-            }).lean(),
-            CollaborationModel.find({
-                creatorId,
-                productId: { $in: productIds }
-            }).lean()
-        ]);
-
-        // -------------------- Create Lookup Maps for Request & Collaboration --------------------
-        const requestMap = new Map<string, any>();
-        requests.forEach(r => requestMap.set(r.productId.toString(), r));
-
-        const collaborationMap = new Map<string, any>();
-        collaborations.forEach(c => collaborationMap.set(c.productId.toString(), c));
-
-        // -------------------- Merge Product + Vendor Info + Creator's Request/Collab --------------------
-        const finalList = await Promise.all(productList.map(async (product) => {
-            const vendorProduct = await VendorProductModel.findOne({ productId: product._id })
-                .populate({ path: 'vendorId', select: '_id business_name' })
-                .lean();
-
-            return {
-                ...product,
-                vendor: vendorProduct?.vendorId || null,
-                request: requestMap.get(product._id.toString()) || null,
-                collaboration: collaborationMap.get(product._id.toString()) || null
-            };
-        }));
-
-        // -------------------- Count Total Products for Pagination --------------------
-        const count = await ProductModel.countDocuments(productFilter);
-
-        // -------------------- Final Response --------------------
-        return sendApiResponse(res, 200, "Product list fetched successfully", {
-            data: finalList,
-            count
-        });
-
-    } catch (error) {
-        console.error("Error while fetching product list", error);
-        return sendApiResponse(res, 500, "Internal server error");
+    if (search) {
+      productFilter.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { tags: { $in: [new RegExp(search as string, "i")] } },
+      ];
     }
-};
 
+    // ✅ Handle comma-separated `categories` param
+    if (categories) {
+      const categoryArray =
+        typeof categories === "string"
+          ? categories.split(",").map((id) => id.trim())
+          : [];
+
+      if (categoryArray.length > 0) {
+        // ✅ Cast to ObjectIds
+        const objectIds = categoryArray.map(
+          (id) => new mongoose.Types.ObjectId(id)
+        );
+        productFilter.category = { $in: objectIds };
+      }
+    }
+
+    // -------------------- Fetch Filtered Products with Pagination --------------------
+    const productList = await ProductModel.find(productFilter)
+      .skip(skip)
+      .limit(limitNumber)
+      .populate("category")
+      .lean();
+
+    const productIds = productList.map((p) => p._id);
+
+    // -------------------- Fetch Requests & Collaborations by This Creator --------------------
+    const [requests, collaborations] = await Promise.all([
+      RequestModel.find({
+        creatorId,
+        productId: { $in: productIds },
+      }).lean(),
+      CollaborationModel.find({
+        creatorId,
+        productId: { $in: productIds },
+      }).lean(),
+    ]);
+
+    // -------------------- Create Lookup Maps for Request & Collaboration --------------------
+    const requestMap = new Map<string, any>();
+    requests.forEach((r) => requestMap.set(r.productId.toString(), r));
+
+    const collaborationMap = new Map<string, any>();
+    collaborations.forEach((c) =>
+      collaborationMap.set(c.productId.toString(), c)
+    );
+
+    // -------------------- Merge Product + Vendor Info + Creator's Request/Collab --------------------
+    const finalList = await Promise.all(
+      productList.map(async (product) => {
+        const vendorProduct: any = await VendorProductModel.findOne({
+          productId: product._id,
+        })
+          .populate({
+            path: "vendorId",
+            select: "_id business_name profile_image",
+          })
+          .lean();
+
+        return {
+          ...product,
+          vendor: {
+            _id: vendorProduct?.vendorId,
+            business_name: vendorProduct?.vendorId?.business_name,
+            profile_image: vendorProduct?.vendorId?.profile_image,
+          },
+          request: requestMap.get(product._id.toString()) || null,
+          collaboration: collaborationMap.get(product._id.toString()) || null,
+        };
+      })
+    );
+
+    // -------------------- Count Total Products for Pagination --------------------
+    const count = await ProductModel.countDocuments(productFilter);
+
+    // -------------------- Final Response --------------------
+    return sendApiResponse(res, 200, "Product list fetched successfully", {
+      data: finalList,
+      count,
+    });
+  } catch (error) {
+    console.error("Error while fetching product list", error);
+    return sendApiResponse(res, 500, "Internal server error");
+  }
+};
 
 const getProductById = async (req: Request, res: Response) => {
-    try {
-        const { productId } = req.params;
-        const product = await ProductModel.findById(productId).populate({
-            path: "category",
-        }).lean();
-        const vendorProduct = await VendorProductModel.findOne({ productId }).select('vendorId')
-        if (!product) {
-            return sendApiResponse(res, 404, "Product not found");
-        }
-        return sendApiResponse(res, 200, "Product fetched successfully", { data: { ...product, vendorId: vendorProduct?.vendorId } });
-    } catch (error) {
-        console.error("Error while fetching product by id", error);
-        return sendApiResponse(res, 500, "Internal server error");
+  try {
+    const { productId } = req.params;
+    const product = await ProductModel.findById(productId)
+      .populate({
+        path: "category",
+      })
+      .lean();
+    const vendorProduct = await VendorProductModel.findOne({
+      productId,
+    }).select("vendorId");
+    if (!product) {
+      return sendApiResponse(res, 404, "Product not found");
     }
+    return sendApiResponse(res, 200, "Product fetched successfully", {
+      data: { ...product, vendorId: vendorProduct?.vendorId },
+    });
+  } catch (error) {
+    console.error("Error while fetching product by id", error);
+    return sendApiResponse(res, 500, "Internal server error");
+  }
 };
-
 
 // const getProductList = async (req: AuthRequest, res: Response) => {
 //     try {
@@ -180,9 +203,9 @@ const getProductById = async (req: Request, res: Response) => {
 
 //         const count = await ProductModel.countDocuments(productFilter);
 
-//         return sendApiResponse(res, 200, "Product list fetched successfully", { 
-//             data: productsWithCollaboration, 
-//             count 
+//         return sendApiResponse(res, 200, "Product list fetched successfully", {
+//             data: productsWithCollaboration,
+//             count
 //         });
 //     } catch (error) {
 //         console.error("Error while fetching product list", error);
