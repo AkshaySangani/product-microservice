@@ -72,7 +72,10 @@ const productListByBrand = async (req: AuthRequest, res: Response) => {
     const limitNumber = Number(limit);
     const skip = (pageNumber - 1) * limitNumber;
 
-    const brand = await VendorModel.findById(brandId).select("business_name");
+    const brand = await VendorModel.findById(brandId).select({
+      business_name: 1,
+      profile_image: 1,
+    });
     if (!brand) {
       return sendApiResponse(res, 404, "Brand not found");
     }
@@ -117,10 +120,6 @@ const productListByBrand = async (req: AuthRequest, res: Response) => {
       .skip(skip)
       .limit(limitNumber)
       .populate("category")
-      .populate({
-        path: "vendorId",
-        select: "business_name profile_image", // Add the fields you want here
-      })
       .lean();
 
     // 4. Fetch creator's collaborations for this brand’s products
