@@ -1,5 +1,6 @@
 import express from 'express';
 import { router } from './routes';
+import './cron/index.cron'; // Import the cron jobs to ensure they are scheduled
 const cors = require('cors')
 
 require('dotenv').config();
