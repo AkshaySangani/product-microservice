@@ -57,8 +57,6 @@ const getCreatorList = async (req: Request, res: Response) => {
     }
 };
 
-
-
 const productListByCreator = async (req: Request, res: Response) => {
     const { creatorId } = req.params;
 
@@ -136,7 +134,6 @@ const productListByCreator = async (req: Request, res: Response) => {
         return sendApiResponse(res, 500, "Internal server error");
     }
 };
-
 
 
 export { getCreatorList, productListByCreator };

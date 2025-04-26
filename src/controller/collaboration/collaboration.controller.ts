@@ -59,12 +59,10 @@ const collaborationRequest = async (req: AuthRequest, res: Response) => {
                         vendorId,
                         productId,
                         requestId: newRequest._id,
-                        discountType: "PERCENTAGE",
-                        discountValue: 0,
-                        couponCode: "ABCD", // TODO: Replace with dynamic code generation if needed
                         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Default to 7 days from now
                         collaborationStatus: "REQUESTED",
-                        commissionPercentage: 0,
+                        commissionValue: 0,
+                        commissionType: "PERCENTAGE",
                     });
 
                     await newCollaboration.save();
@@ -105,9 +103,6 @@ const getCollaborationList = async (req: AuthRequest, res: Response) => {
         const search = (req.query.search as string)?.trim() || "";
         // Optional collaborationStatus filter from query
         const collaborationStatus = (req.query.collaborationStatus as string)?.trim();
-
-        console.log("Search parameter:", search);
-        console.log("Collaboration status parameter:", collaborationStatus);
 
         // ---------------- Base Filter: Role and collaborationStatus ----------------
         const matchStage: any = {};
@@ -302,7 +297,6 @@ const getCollaborationList = async (req: AuthRequest, res: Response) => {
     }
 };
 
-
 const requestStatusChange = async (req: AuthRequest, res: Response) => {
     const { collaborationId, status } = req.body;
     const { _id, userRole } = req.user; // Logged-in user's ID and role
@@ -445,6 +439,78 @@ const getCollaborationById = async (req: AuthRequest, res: Response) => {
         return sendApiResponse(res, 500, "Internal server error", { error: error.message });
     }
 }
+
+export const updateCollaborationDetails = async (req: AuthRequest, res: Response) => {
+    const { collaborationId } = req.params;
+    const userRole = req.userRole;
+  
+    try {
+      const {
+        vendorProposal,
+        creatorProposal,
+        discountType,
+        discountValue,
+        couponCode,
+        commissionValue,
+        commissionType,
+        startAt,
+        expiresAt,
+        agreedByCreator,
+        agreedByVendor
+      } = req.body;
+  
+      // ---------------- Fetch the collaboration ----------------
+      const collaboration : any = await CollaborationModel.findById(collaborationId);
+      if (!collaboration) {
+        return sendApiResponse(res, 404, "Collaboration not found");
+      }
+      if(collaboration.collaborationStatus !== 'PENDING'){
+        return sendApiResponse(res, 404, collaboration.collaborationStatus + "collaboration can not modify.");
+      }
+
+      //If someone edit something it mean opposite side is not agreed
+      if(userRole === 'creator' && !agreedByCreator){
+        collaboration.negotiation.agreedByVendor = false;
+      }
+      if(userRole === 'vendor' && !agreedByVendor){
+        collaboration.negotiation.agreedByCreator = false;
+      }
+  
+      // ---------------- Update negotiation values ----------------
+      if (userRole === "creator" && creatorProposal != null) {
+        collaboration.negotiation.creatorProposal = creatorProposal;
+        collaboration.negotiation.commissionValue = creatorProposal; // last proposed
+      }
+  
+      if (userRole === "vendor" && vendorProposal != null) {
+        collaboration.negotiation.vendorProposal = vendorProposal;
+        collaboration.negotiation.commissionValue = vendorProposal; // last proposed
+      }
+  
+      // ---------------- If final agreed amount is explicitly passed ----------------
+      if (commissionValue != null) {
+        collaboration.negotiation.commissionValue = commissionValue;
+      }
+  
+      // ---------------- Optional fields update ----------------
+      if (discountType) collaboration.discountType = discountType;
+      if (discountValue != null) collaboration.discountValue = discountValue;
+      if (couponCode) collaboration.couponCode = couponCode;
+      if (commissionType != null) collaboration.commissionType = commissionType;
+      if (expiresAt) collaboration.expiresAt = new Date(expiresAt);
+      if (startAt) collaboration.startAt = new Date(startAt);
+      if (agreedByCreator) collaboration.negotiation.agreedByCreator = agreedByCreator;
+      if (agreedByVendor) collaboration.negotiation.agreedByVendor = agreedByVendor;
+  
+      await collaboration.save();
+  
+      return res.status(200).json({ message: "Collaboration details updated", data: collaboration });
+    } catch (e: any) {
+      console.error("Error while updating collaboration details:", e);
+      return res.status(500).json({ message: "Internal server error", error: e.message });
+    }
+  };
+  
 
 export {
     collaborationRequest,

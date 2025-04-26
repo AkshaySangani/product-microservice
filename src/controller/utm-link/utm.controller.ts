@@ -11,14 +11,14 @@ import { BACKEND_URL } from "../../config";
  */
 export const createUTM = async (req: AuthRequest, res: Response) => {
     try {
-        const { collaborationId, discountType, discountValue, couponCode, commissionPercentage, expiresAt } = req.body;
+        const { collaborationId, discountType, discountValue, couponCode, commissionValue, expiresAt } = req.body;
         const { _id: vendorId } = req.user;
 
         if (!collaborationId) {
             return sendApiResponse(res, 400, "Collaboration ID is required");
         }
 
-        if (!discountType || !discountValue || !couponCode || !commissionPercentage || !expiresAt) {
+        if (!discountType || !discountValue || !couponCode || !commissionValue || !expiresAt) {
             return sendApiResponse(res, 400, "All fields are required");
         }
 
@@ -68,7 +68,7 @@ export const createUTM = async (req: AuthRequest, res: Response) => {
                     discount_type: discountType,
                     discount_value: discountValue,
                     coupon_code: couponCode,
-                    commission_percentage: commissionPercentage,
+                    commission_percentage: commissionValue,
                     expires_at: expiresAt,
                     product_id: vendorProduct.productId.channelProductId,
                     creator_id: collaboration.creatorId,

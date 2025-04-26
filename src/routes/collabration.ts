@@ -16,4 +16,6 @@ router.get('/status/:productId', commonAuthMiddleware, collaborationController.g
 
 router.get('/:collaborationId', commonAuthMiddleware, collaborationController.getCollaborationById) // get collaboration by id
 
+router.put('/:collaborationId', commonAuthMiddleware, collaborationController.updateCollaborationDetails) // get collaboration by id
+
 export { router as collaborationRouter };
