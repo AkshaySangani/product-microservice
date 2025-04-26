@@ -63,6 +63,10 @@ const collaborationRequest = async (req: AuthRequest, res: Response) => {
                         collaborationStatus: "REQUESTED",
                         commissionValue: 0,
                         commissionType: "PERCENTAGE",
+                        negotiation: {
+                            creatorProposal: 0,
+                            vendorProposal: 0,
+                          },
                     });
 
                     await newCollaboration.save();
