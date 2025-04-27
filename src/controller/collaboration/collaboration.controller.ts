@@ -581,7 +581,7 @@ export const updateCollaborationDetails = async (
         creatorProposal !== collaboration.negotiation.creatorProposal
       ) {
         collaboration.negotiation.creatorProposal = creatorProposal;
-        collaboration.negotiation.commissionValue = creatorProposal;
+        collaboration.commissionValue = creatorProposal;
         isProposalUpdated = true;
       }
   
@@ -591,8 +591,9 @@ export const updateCollaborationDetails = async (
         vendorProposal !== null &&
         vendorProposal !== collaboration.negotiation.vendorProposal
       ) {
+        console.log("hello--",vendorProposal)
         collaboration.negotiation.vendorProposal = vendorProposal;
-        collaboration.negotiation.commissionValue = vendorProposal;
+        collaboration.commissionValue = vendorProposal;
         isProposalUpdated = true;
       }
   
@@ -600,9 +601,9 @@ export const updateCollaborationDetails = async (
       if (
         commissionValue !== undefined &&
         commissionValue !== null &&
-        commissionValue !== collaboration.negotiation.commissionValue
+        commissionValue !== collaboration.commissionValue
       ) {
-        collaboration.negotiation.commissionValue = commissionValue;
+        collaboration.commissionValue = commissionValue;
         isProposalUpdated = true;
       }
   
