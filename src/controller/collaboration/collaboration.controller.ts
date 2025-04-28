@@ -10,7 +10,7 @@ import {
   RequestModel,
 } from "../../database/model";
 import axios from "axios";
-import { BACKEND_URL } from "../../config";
+import { BACKEND_URL, FRONTEND_URL } from "../../config";
 import { sendNotification } from "../../common/sendNotification";
 
 const collaborationRequest = async (req: AuthRequest, res: Response) => {
@@ -664,7 +664,32 @@ export const updateCollaborationDetails = async (
         error: error?.message || "Unexpected error",
       });
     }
-  };  
+  };
+
+export const updateCollaborationCrmLink = async (req: AuthRequest, res: Response) => {
+    const { collaborationId } = req.params;
+
+    try {
+      const collaboration : any = await CollaborationModel.findById(collaborationId).populate('creatorId');
+      if (!collaboration) {
+        return sendApiResponse(res, 404, "Collaboration not found.");
+      }
+
+      const crmLink = FRONTEND_URL + '/' + collaboration.creatorId.user_name + '/' + collaboration._id;
+
+      collaboration.crmLink = crmLink;
+      await collaboration.save(); 
+      
+      return sendApiResponse(res, 200, "Collaboration CRM link updated successfully", {
+        collaboration,
+      });
+    } catch (error: any) {
+      console.error("Error while updating collaboration CRM link:", error);
+      return sendApiResponse(res, 500, "Internal server error", {
+        error: error?.message || "Unexpected error",
+      });
+    }
+  };
 
 export {
   collaborationRequest,
