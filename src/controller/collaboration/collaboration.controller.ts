@@ -675,7 +675,7 @@ export const updateCollaborationCrmLink = async (req: AuthRequest, res: Response
         return sendApiResponse(res, 404, "Collaboration not found.");
       }
 
-      const crmLink = FRONTEND_URL + '/' + collaboration.creatorId.user_name + '/' + collaboration._id;
+      const crmLink = FRONTEND_URL + '/creators/' + collaboration.creatorId.user_name + '/' + collaboration._id;
 
       collaboration.crmLink = crmLink;
       await collaboration.save(); 
