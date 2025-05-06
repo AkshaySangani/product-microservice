@@ -12,6 +12,7 @@ import {
 import axios from "axios";
 import { BACKEND_URL, FRONTEND_URL } from "../../config";
 import { sendNotification } from "../../common/sendNotification";
+import { createShopifyUTM } from "../utm-link/utm.controller";
 
 const collaborationRequest = async (req: AuthRequest, res: Response) => {
   try {
@@ -679,10 +680,7 @@ export const updateCollaborationCrmLink = async (req: AuthRequest, res: Response
 
       collaboration.crmLink = crmLink;
       await collaboration.save(); 
-      
-      return sendApiResponse(res, 200, "Collaboration CRM link updated successfully", {
-        collaboration,
-      });
+      return await createShopifyUTM(req, res);
     } catch (error: any) {
       console.error("Error while updating collaboration CRM link:", error);
       return sendApiResponse(res, 500, "Internal server error", {
@@ -691,6 +689,40 @@ export const updateCollaborationCrmLink = async (req: AuthRequest, res: Response
     }
   };
 
+
+// Runs every hour to update collaboration status
+export const updateCollaborationStatus = async () => {
+  try {
+    const now = new Date();
+
+    // -------- 1. Expire Collaborations that are past expiresAt --------
+    const expiredResult = await CollaborationModel.updateMany(
+      {
+        expiresAt: { $lt: now },
+        collaborationStatus: { $in: ["PENDING", "ACTIVE"] },
+      },
+      { $set: { collaborationStatus: "EXPIRED" } }
+    );
+    console.log(`Expired collaborations: ${expiredResult.modifiedCount}`);
+
+    // -------- 2. Activate Collaborations that passed startAt and still PENDING --------
+    const activatedResult = await CollaborationModel.updateMany(
+      {
+        startAt: { $lte: now },
+        expiresAt: { $gt: now },
+        collaborationStatus: "PENDING",
+        "negotiation.agreedByCreator": true,
+        "negotiation.agreedByVendor": true,
+      },
+      { $set: { collaborationStatus: "ACTIVE" } }
+    );
+    console.log(`Activated collaborations: ${activatedResult.modifiedCount}`);
+  } catch (error: any) {
+    console.error("Error while updating collaboration status cron:", error.message);
+  }
+};
+
+  
 export {
   collaborationRequest,
   getCollaborationList,
