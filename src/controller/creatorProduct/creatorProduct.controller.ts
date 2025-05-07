@@ -5,7 +5,7 @@ import { CollaborationModel, CreatorModel, CreatorProductModel, ProductModel } f
 const getCreatorList = async (req: Request, res: Response) => {
     try {
         // Pagination
-        const { page = 1, limit = 10, search, category, sub_category } = req.query;
+        const { page = 1, limit = 10, search, category, sub_category, state, city } = req.query;
         const pageNumber = Number(page);
         const limitNumber = Number(limit);
         const skip = (pageNumber - 1) * limitNumber;
@@ -21,6 +21,14 @@ const getCreatorList = async (req: Request, res: Response) => {
                 { full_name: { $regex: searchRegex } },
                 { tags: { $in: [new RegExp(search as string, 'i')] } } // Match any tag using regex
             ];
+        }
+
+        if (state) {
+            filter.state = state;
+        }
+
+        if (city) {
+            filter.city = city;
         }
 
         // Filter by categories

@@ -12,7 +12,7 @@ import mongoose from "mongoose";
 
 const getBrandList = async (req: Request, res: Response) => {
   try {
-    const { page = 1, limit = 10, search } = req.query;
+    const { page = 1, limit = 10, search, state, city } = req.query;
     const pageNumber = Number(page);
     const limitNumber = Number(limit);
     const skip = (pageNumber - 1) * limitNumber;
@@ -24,6 +24,14 @@ const getBrandList = async (req: Request, res: Response) => {
       matchFilter.business_name = { $regex: regex };
     }
 
+    if (state) {
+      matchFilter.state = state;
+    }
+
+    if (city) {
+      matchFilter.city = city;
+    }
+    
     // Aggregation to fetch brands with product counts
     const brandsWithProductCounts = await VendorModel.aggregate([
       { $match: matchFilter }, // Apply search filter if any
