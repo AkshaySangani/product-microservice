@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import sendApiResponse from "../../common";
 import {
+  CampaignModel,
   CollaborationModel,
   ProductModel,
   RequestModel,
@@ -10,20 +11,21 @@ import { CreatorProductModel } from "../../database/model";
 import { AuthRequest } from "../../types/authRequest";
 import mongoose from "mongoose";
 
-//for creator product list with request and collaboration
+// Get Product List for Creator with Collaboration, Request, and Campaign Info
 const getProductList = async (req: AuthRequest, res: Response) => {
   try {
     const { _id: creatorId } = req.user;
 
-    // -------------------- Extract and Prepare Query Params --------------------
+    // -------------------- Extract Query Params --------------------
     const { page = 1, limit = 10, categories, search } = req.query;
     const pageNumber = Number(page);
     const limitNumber = Number(limit);
     const skip = (pageNumber - 1) * limitNumber;
 
-    // -------------------- Build Product Filters --------------------
+    // -------------------- Build Dynamic Product Filters --------------------
     let productFilter: any = {};
 
+    // Text search on title or tags
     if (search) {
       productFilter.$or = [
         { title: { $regex: search, $options: "i" } },
@@ -31,7 +33,7 @@ const getProductList = async (req: AuthRequest, res: Response) => {
       ];
     }
 
-    // ✅ Handle comma-separated `categories` param
+    // Handle category filtering (comma-separated)
     if (categories) {
       const categoryArray =
         typeof categories === "string"
@@ -39,7 +41,6 @@ const getProductList = async (req: AuthRequest, res: Response) => {
           : [];
 
       if (categoryArray.length > 0) {
-        // ✅ Cast to ObjectIds
         const objectIds = categoryArray.map(
           (id) => new mongoose.Types.ObjectId(id)
         );
@@ -47,8 +48,9 @@ const getProductList = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    // -------------------- Fetch Filtered Products with Pagination --------------------
+    // -------------------- Fetch Products with Pagination --------------------
     const productList = await ProductModel.find(productFilter)
+      .sort({ createdAt: -1 }) // 👈 Sorts by latest
       .skip(skip)
       .limit(limitNumber)
       .populate("category")
@@ -56,7 +58,16 @@ const getProductList = async (req: AuthRequest, res: Response) => {
 
     const productIds = productList.map((p) => p._id);
 
-    // -------------------- Fetch Requests & Collaborations by This Creator --------------------
+    // -------------------- Fetch Active Campaigns for These Products --------------------
+    const campaigns = await CampaignModel.find({
+      productId: { $in: productIds },
+      status: "ACTIVE",
+    }).lean();
+
+    const campaignMap = new Map<string, any>();
+    campaigns.forEach((c) => campaignMap.set(c.productId.toString(), c));
+
+    // -------------------- Fetch Creator's Requests and Collaborations --------------------
     const [requests, collaborations] = await Promise.all([
       RequestModel.find({
         creatorId,
@@ -68,7 +79,7 @@ const getProductList = async (req: AuthRequest, res: Response) => {
       }).lean(),
     ]);
 
-    // -------------------- Create Lookup Maps for Request & Collaboration --------------------
+    // Build lookup maps for efficient access
     const requestMap = new Map<string, any>();
     requests.forEach((r) => requestMap.set(r.productId.toString(), r));
 
@@ -77,8 +88,8 @@ const getProductList = async (req: AuthRequest, res: Response) => {
       collaborationMap.set(c.productId.toString(), c)
     );
 
-    // -------------------- Merge Product + Vendor Info + Creator's Request/Collab --------------------
-    const finalList = await Promise.all(
+    // -------------------- Enrich Products with Vendor, Request, Collaboration & Campaign Info --------------------
+    const enrichedProducts = await Promise.all(
       productList.map(async (product) => {
         const vendorProduct = await VendorProductModel.findOne({
           productId: product._id,
@@ -89,21 +100,72 @@ const getProductList = async (req: AuthRequest, res: Response) => {
           })
           .lean();
 
+        const productIdStr = product._id.toString();
+
         return {
           ...product,
           vendor: vendorProduct?.vendorId || null,
-          request: requestMap.get(product._id.toString()) || null,
-          collaboration: collaborationMap.get(product._id.toString()) || null,
+          request: requestMap.get(productIdStr) || null,
+          collaboration: collaborationMap.get(productIdStr) || null,
+          campaign: campaignMap.has(productIdStr)
+            ? {
+                _id: campaignMap.get(productIdStr)._id,
+                status: campaignMap.get(productIdStr).status,
+              }
+            : null,
         };
       })
     );
 
-    // -------------------- Count Total Products for Pagination --------------------
+    // -------------------- Separate and Shuffle Products --------------------
+    const campaignProducts = enrichedProducts.filter((p) => p.campaign);
+    const normalProducts = enrichedProducts.filter((p) => !p.campaign);
+
+    const shuffle = (arr: any[]) => arr.sort(() => Math.random() - 0.5);
+
+    const shuffledCampaigns = shuffle(campaignProducts);
+    const shuffledNormals = shuffle(normalProducts);
+
+    // -------------------- Take 2 campaigns for top
+    const topCampaigns = shuffledCampaigns.slice(0, 2);
+    const remainingCampaigns = shuffledCampaigns.slice(2);
+
+    // -------------------- Mix remaining campaigns and normals
+    const mergedRest: any[] = [];
+    let cpIndex = 0;
+    let npIndex = 0;
+
+    // Push campaign more frequently early, then balance out
+    while (
+      cpIndex < remainingCampaigns.length ||
+      npIndex < shuffledNormals.length
+    ) {
+      // Push a campaign ~60% of the time early, then less frequently
+      const preferCampaign =
+        mergedRest.length < 6 ? Math.random() < 0.6 : Math.random() < 0.3;
+
+      if (preferCampaign && cpIndex < remainingCampaigns.length) {
+        mergedRest.push(remainingCampaigns[cpIndex++]);
+      } else if (npIndex < shuffledNormals.length) {
+        mergedRest.push(shuffledNormals[npIndex++]);
+      } else if (cpIndex < remainingCampaigns.length) {
+        // if normal products are exhausted, push remaining campaigns
+        mergedRest.push(remainingCampaigns[cpIndex++]);
+      }
+    }
+
+    // -------------------- Combine top campaigns with the rest
+    const finalMergedList = [...topCampaigns, ...mergedRest];
+
+    // -------------------- Paginate the final list
+    const paginated = finalMergedList.slice(0, limitNumber);
+
+    // -------------------- Count Total Matching Products --------------------
     const count = await ProductModel.countDocuments(productFilter);
 
-    // -------------------- Final Response --------------------
+    // -------------------- Send Final Response --------------------
     return sendApiResponse(res, 200, "Product list fetched successfully", {
-      data: finalList,
+      data: paginated,
       count,
     });
   } catch (error) {

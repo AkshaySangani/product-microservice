@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import sendApiResponse from "../../common";
 import {
+  CampaignModel,
   CollaborationModel,
   ProductModel,
   VendorModel,
@@ -31,7 +32,7 @@ const getBrandList = async (req: Request, res: Response) => {
     if (city) {
       matchFilter.city = city;
     }
-    
+
     // Aggregation to fetch brands with product counts
     const brandsWithProductCounts = await VendorModel.aggregate([
       { $match: matchFilter }, // Apply search filter if any
@@ -123,14 +124,21 @@ const productListByBrand = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    // 3. Fetch filtered product list with pagination
-    const productList = await ProductModel.find(productFilter)
-      .skip(skip)
-      .limit(limitNumber)
+    // 3. Fetch filtered product list (raw, no pagination yet)
+    const productListRaw = await ProductModel.find(productFilter)
       .populate("category")
       .lean();
 
-    // 4. Fetch creator's collaborations for this brand’s products
+    // 4. Get active campaigns for these products
+    const activeCampaigns = await CampaignModel.find({
+      productId: { $in: vendorProductIds },
+      status: "ACTIVE",
+    }).lean();
+
+    const campaignMap = new Map<string, any>();
+    activeCampaigns.forEach((c) => campaignMap.set(c.productId.toString(), c));
+
+    // 5. Fetch creator collaborations
     const collaborations = await CollaborationModel.find({
       vendorId: brandId,
       creatorId,
@@ -139,32 +147,57 @@ const productListByBrand = async (req: AuthRequest, res: Response) => {
       .populate("requestId")
       .lean();
 
-    // 5. Map collaborations by productId for quick lookup
     const collaborationMap = new Map<string, any>();
     collaborations.forEach((c) => {
       collaborationMap.set(c.productId.toString(), c);
     });
 
-    // 6. Enrich each product with collaboration if exists
-    const enrichedProducts = productList.map((product) => {
+    // 6. Enrich products with campaign + collaboration data
+    const enrichedProducts = productListRaw.map((product) => {
+      const campaign = campaignMap.get(product._id.toString());
       const collab = collaborationMap.get(product._id.toString());
       const request = collab?.requestId || null;
       delete collab?.requestId;
+
       return {
         ...product,
         collaboration: collab || null,
         request: request || null,
+        campaign: campaign
+          ? { _id: campaign._id, status: campaign.status }
+          : null,
         vendor: brand,
       };
     });
 
+    // 7. Prioritize campaign products
+    const campaignProducts = enrichedProducts.filter((p) => p.campaign);
+    const normalProducts = enrichedProducts.filter((p) => !p.campaign);
+
+    // Insert campaign products every 3 slots (adjust as needed)
+    const mergedProducts: any[] = [];
+    let cpIndex = 0,
+      npIndex = 0;
+
+    while (mergedProducts.length < enrichedProducts.length) {
+      if (cpIndex < campaignProducts.length) {
+        mergedProducts.push(campaignProducts[cpIndex++]);
+      }
+      for (let i = 0; i < 3 && npIndex < normalProducts.length; i++) {
+        mergedProducts.push(normalProducts[npIndex++]);
+      }
+    }
+
+    // 8. Final paginated output
+    const paginated = mergedProducts.slice(skip, skip + limitNumber);
+
     return sendApiResponse(
       res,
       200,
-      "Vendor's product list (creator-specific) fetched successfully",
+      "Vendor's product list (creator-specific) with campaigns",
       {
-        data: enrichedProducts,
-        count: vendorProductIds.length,
+        data: paginated,
+        count: enrichedProducts.length,
       }
     );
   } catch (error) {
