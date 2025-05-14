@@ -230,14 +230,8 @@ const brandProductList = async (req: AuthRequest, res: Response) => {
       return sendApiResponse(res, 404, "Brand not found");
     }
 
-    // Get all product IDs associated with this vendor
-    const vendorProducts = await VendorProductModel.find({
-      vendorId: brandId,
-    }).select("productId");
-    const productIds = vendorProducts.map((vp) => vp.productId);
-
     // Build product query filter
-    let productFilter: any = { _id: { $in: productIds } };
+    let productFilter: any = { vendorId: brandId };
 
     // Apply search filter to title or tags
     if (search) {
@@ -260,6 +254,7 @@ const brandProductList = async (req: AuthRequest, res: Response) => {
           (id) => new mongoose.Types.ObjectId(id)
         );
         productFilter.category = { $in: objectIds };
+        productFilter.subCategory = { $in: objectIds };
       }
     }
 
@@ -276,7 +271,7 @@ const brandProductList = async (req: AuthRequest, res: Response) => {
 
     // Send response
     return sendApiResponse(res, 200, "Product list fetched successfully", {
-      data: productList,
+      list: productList,
       count,
     });
   } catch (error) {
