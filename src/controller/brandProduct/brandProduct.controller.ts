@@ -10,6 +10,8 @@ import {
 import { AuthRequest } from "../../types/authRequest";
 import { BACKEND_URL } from "../../config";
 import mongoose from "mongoose";
+import { productValidationSchema } from "./validation/index";
+import { uploadToS3 } from "../../lib/s3";
 
 const getBrandList = async (req: Request, res: Response) => {
   try {
@@ -284,22 +286,41 @@ const brandProductList = async (req: AuthRequest, res: Response) => {
 };
 
 const addNewProduct = async (req: AuthRequest, res: Response) => {
-  const { _id: vendorId } = req.user; // Extract vendor ID from authenticated user
-  const { productId, channelName, categories } = req.body; // Extract necessary fields
+  const { _id: vendorId } = req.user;
+  const { productId, channelName } = req.body;
 
   try {
-    // Validate required fields
-    if (!productId || !channelName || !categories) {
+    // Basic field validation
+    if (!productId || !channelName) {
       return sendApiResponse(
         res,
         400,
-        "Product ID, channel name, and categories are required"
+        "Product ID and channel name are required"
       );
+    }
+
+    // Check for existing product
+    let existingProduct = await ProductModel.findOne({
+      channelProductId: productId,
+      vendorId: vendorId,
+    });
+    if (existingProduct) {
+      return sendApiResponse(
+        res,
+        409,
+        "Product already exists in the platform",
+        { product: existingProduct }
+      );
+    }
+
+    // Validate the merged product data
+    const { error, value } = productValidationSchema.validate(req.body);
+    if (error) {
+      return sendApiResponse(res, 400, error.details[0].message);
     }
 
     let productData;
 
-    // Fetch product details from Shopify API if channel is "shopify"
     if (channelName === "shopify") {
       const response = await fetch(
         `${BACKEND_URL}/channel/shopify/product?productId=${productId}`,
@@ -313,7 +334,6 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("Shopify API Error:", errorText);
         return sendApiResponse(
           res,
           response.status,
@@ -323,79 +343,74 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
       }
 
       const responseData = await response.json();
-      if (!responseData?.data) {
-        return sendApiResponse(
-          res,
-          404,
-          "No product data found from Shopify API"
-        );
-      }
-
       productData = responseData.data;
 
-      // Check if product already exists in the database
-      let existingProduct = await ProductModel.findOne({
-        channelProductId: productData.id,
-        vendorId: vendorId,
-      });
-      if (existingProduct) {
-        return sendApiResponse(
-          res,
-          409,
-          "Product already exists in the database",
-          { product: existingProduct }
-        );
+      if (!productData) {
+        return sendApiResponse(res, 404, "No product data found");
       }
 
-      // Create a new product entry
-      existingProduct = new ProductModel({
-        channelProductId: productData.id,
+      // Handle file uploads (e.g., profile image and banner image)
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+      let creatorMaterial: any[] = [];
+
+      // Handle multiple creatorMaterial files
+      if (files?.creatorMaterial?.length) {
+        const path = `vendor/${vendorId}/products/materials`;
+
+        const uploadPromises = files.creatorMaterial.map((file) =>
+          uploadToS3(file.buffer, file.originalname, file.mimetype, path)
+        );
+
+        const uploadedFiles = await Promise.all(uploadPromises);
+        creatorMaterial = uploadedFiles.map((upload) => upload.url);
+      }
+
+      // Merge API product data and request body (which includes metadata fields)
+      const fullProduct = {
         title: productData.title,
+        channelProductId: productData.id,
         sku: productData.handle,
         description: productData.description || "",
         media:
           productData.media?.nodes?.length > 0
             ? productData.media?.nodes.map((item: any) => item?.image?.url)
             : [],
-        channelName: channelName,
-        category: categories,
-        tags: productData.tags || [],
-        vendorId: vendorId,
-      });
+        channelName,
+        vendorId,
+        creatorMaterial, // ⬅️ this now comes from uploaded files
+        ...value, // Includes category, tags, commission, etc.
+      };
 
-      await existingProduct.save();
+      // Save the product
+      const newProduct = await ProductModel.create(fullProduct);
 
-      // Check if an entry exists in `VendorProductModel` for this vendor and product
-      const existingVendorProduct = await VendorProductModel.findOne({
-        vendorId: vendorId,
-        productId: existingProduct._id,
-        channelName: channelName,
-      });
+      // // Link vendor with product
+      // const existingVendorProduct = await VendorProductModel.findOne({
+      //   vendorId,
+      //   productId: newProduct._id,
+      //   channelName,
+      // });
 
-      if (existingVendorProduct) {
-        return sendApiResponse(res, 409, "Vendor already added this product", {
-          vendorProduct: existingVendorProduct,
-        });
-      }
+      // if (existingVendorProduct) {
+      //   return sendApiResponse(res, 409, "Vendor already added this product", {
+      //     vendorProduct: existingVendorProduct,
+      //   });
+      // }
 
-      // Add an entry in the `VendorProductModel`
-      const newVendorProduct = new VendorProductModel({
-        vendorId: vendorId,
-        productId: existingProduct._id,
-        channelName: channelName,
-      });
-      await newVendorProduct.save();
+      // const newVendorProduct = await VendorProductModel.create({
+      //   vendorId,
+      //   productId: newProduct._id,
+      //   channelName,
+      // });
 
-      // Return success response
       return sendApiResponse(res, 201, "Product added successfully", {
-        product: existingProduct,
-        vendorProduct: newVendorProduct,
+        product: newProduct,
       });
     } else {
-      return sendApiResponse(res, 400, "Channel not allowed");
+      return sendApiResponse(res, 400, "Unsupported channel");
     }
   } catch (error: any) {
-    console.error("Error while adding new product:", error);
+    console.error("Error while adding product:", error);
     return sendApiResponse(res, 500, "Internal server error", {
       error: error.message || "Unknown error",
     });
