@@ -364,6 +364,7 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
       const fullProduct = {
         title: productData.title,
         channelProductId: productData.id,
+        price: productData.variants.nodes[0].price,
         sku: productData.handle,
         description: productData.description || "",
         media:
