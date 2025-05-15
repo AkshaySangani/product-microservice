@@ -377,6 +377,10 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
         ...value, // Includes category, tags, commission, etc.
       };
 
+      if(value.lifeTime){
+        fullProduct.endDate = null;
+      }
+
       // Save the product
       const newProduct = await ProductModel.create(fullProduct);
 
@@ -453,6 +457,10 @@ const editProduct = async (req: AuthRequest, res: Response) => {
       ...value,
       creatorMaterial: updatedCreatorMaterial,
     };
+
+    if(value.lifeTime){
+      updatePayload.endDate = null;
+    }
 
     // Update product
     const updatedProduct = await ProductModel.findByIdAndUpdate(
