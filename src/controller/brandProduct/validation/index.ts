@@ -41,7 +41,7 @@ export const productValidationSchema = Joi.object({
 
   creatorMaterial: Joi.array().items(Joi.string()).optional(),
 
-  videoType: Joi.string().required(),
+  videoType: Joi.array().items(Joi.string()).optional(),
 
   channels: Joi.array()
     .items(Joi.string().valid("youtube", "instagram"))

@@ -413,7 +413,6 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
   }
 };
 
-
 const editProduct = async (req: AuthRequest, res: Response) => {
   const { _id: vendorId } = req.user;
   const { productId } = req.body;
@@ -473,4 +472,42 @@ const editProduct = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export { getBrandList, productListByBrand, addNewProduct, brandProductList, editProduct };
+const checkExistingBrandProductBeforeAdd = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  const { _id: vendorId } = req.user;
+  const { productId } = req.body;
+  try {
+    // Check for existing product
+    let existingProduct = await ProductModel.findOne({
+      channelProductId: productId,
+      vendorId: vendorId,
+    });
+
+    if (existingProduct) {
+      return sendApiResponse(
+        res,
+        409,
+        "Product already exists in the platform",
+        { product: existingProduct }
+      );
+    }
+
+    return sendApiResponse(res, 200, "Product not found");
+  } catch (error: any) {
+    console.error("Error while checking existing brand product:", error);
+    return sendApiResponse(res, 500, "Internal server error", {
+      error: error.message || "Unknown error",
+    });
+  }
+};
+
+export {
+  getBrandList,
+  productListByBrand,
+  addNewProduct,
+  brandProductList,
+  editProduct,
+  checkExistingBrandProductBeforeAdd,
+};

@@ -23,6 +23,12 @@ router.get(
 ); // get brand wise product list
 
 router.post(
+  "/check-existing-product",
+  VendorAuthMiddleware,
+  brandProductController.checkExistingBrandProductBeforeAdd
+); // check existing product
+  
+router.post(
   "/add",
   VendorAuthMiddleware,
   upload.fields([

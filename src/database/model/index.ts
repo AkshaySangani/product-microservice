@@ -12,6 +12,7 @@ import ChannelSchema from "../../../../shared-models/src/models/channel";
 import RequestSchema from "../../../../shared-models/src/models/request";
 import CampaignSchema from "../../../../shared-models/src/models/campaign";
 import WishListSchema from "../../../../shared-models/src/models/wishList";
+
 const ProductModel = mongoose.model("Product", ProductSchema);
 const CategoryModel = mongoose.model("Category", CategorySchema);
 const TagsModel = mongoose.model("Tags", TagsSchema);
