@@ -413,4 +413,64 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export { getBrandList, productListByBrand, addNewProduct, brandProductList };
+
+const editProduct = async (req: AuthRequest, res: Response) => {
+  const { _id: vendorId } = req.user;
+  const { productId } = req.body;
+
+  try {
+    // Basic validation
+    if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
+      return sendApiResponse(res, 400, "Valid productId is required");
+    }
+
+    // Fetch product
+    const product = await ProductModel.findOne({ _id: productId, vendorId });
+    if (!product) {
+      return sendApiResponse(res, 404, "Product not found");
+    }
+
+    // Validate input
+    const { error, value } = productValidationSchema.validate(req.body);
+    if (error) {
+      return sendApiResponse(res, 400, error.details[0].message);
+    }
+
+    // Handle file updates
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+    let updatedCreatorMaterial = product.creatorMaterial || [];
+
+    if (files?.creatorMaterial?.length) {
+      const path = `vendor/${vendorId}/products/materials`;
+      const uploadPromises = files.creatorMaterial.map((file) =>
+        uploadToS3(file.buffer, file.originalname, file.mimetype, path)
+      );
+      const uploadedFiles = await Promise.all(uploadPromises);
+      updatedCreatorMaterial = uploadedFiles.map((file) => file.url);
+    }
+
+    // Build update object
+    const updatePayload: Partial<typeof product> = {
+      ...value,
+      creatorMaterial: updatedCreatorMaterial,
+    };
+
+    // Update product
+    const updatedProduct = await ProductModel.findByIdAndUpdate(
+      productId,
+      { $set: updatePayload },
+      { new: true }
+    );
+
+    return sendApiResponse(res, 200, "Product updated successfully", {
+      product: updatedProduct,
+    });
+  } catch (error: any) {
+    console.error("Error updating product:", error);
+    return sendApiResponse(res, 500, "Internal server error", {
+      error: error.message || "Unknown error",
+    });
+  }
+};
+
+export { getBrandList, productListByBrand, addNewProduct, brandProductList, editProduct };

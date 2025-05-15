@@ -31,4 +31,13 @@ router.post(
   brandProductController.addNewProduct
 ); // add new product
 
+router.put(
+  "/update",
+  VendorAuthMiddleware,
+  upload.fields([
+    { name: "creatorMaterial", maxCount: 10 },
+  ]),
+  brandProductController.editProduct
+); // add new product
+
 export { router as brandProductRouter };
