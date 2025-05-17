@@ -1,7 +1,8 @@
 import { Router } from 'express';
-import { collaborationController } from '../controller';
-import { creatorAuthMiddleware } from '../middleware/creatorAuth.middleware';
-import { commonAuthMiddleware } from '../middleware/commonAuth.middleware';
+import { collaborationController } from '../../controller';
+import { creatorAuthMiddleware } from '../../middleware/creatorAuth.middleware';
+import { commonAuthMiddleware } from '../../middleware/commonAuth.middleware';
+import { vendorCollaborationRouter } from './vendor';
 const router = Router();
 
 router.post('/creator/request', commonAuthMiddleware, collaborationController.collaborationRequest); // creator request for collaboration
@@ -17,5 +18,7 @@ router.get('/status/:productId', commonAuthMiddleware, collaborationController.g
 router.get('/:collaborationId', commonAuthMiddleware, collaborationController.getCollaborationById) // get collaboration by id
 
 router.put('/:collaborationId', commonAuthMiddleware, collaborationController.updateCollaborationDetails) // get collaboration by id
+
+router.use('/vendor', vendorCollaborationRouter);
 
 export { router as collaborationRouter };
