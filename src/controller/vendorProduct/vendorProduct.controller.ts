@@ -13,7 +13,7 @@ import mongoose from "mongoose";
 import { productValidationSchema } from "./validation/index";
 import { uploadToS3 } from "../../lib/s3";
 
-const getBrandList = async (req: Request, res: Response) => {
+const getVendorList = async (req: Request, res: Response) => {
   try {
     const { page = 1, limit = 10, search, state, city } = req.query;
     const pageNumber = Number(page);
@@ -73,9 +73,8 @@ const getBrandList = async (req: Request, res: Response) => {
   }
 };
 
-const productListByBrand = async (req: AuthRequest, res: Response) => {
-  const { _id: creatorId } = req.user;
-  const { brandId } = req.params;
+const productListByVendorId = async (req: AuthRequest, res: Response) => {
+  const { vendorId } = req.params;
 
   try {
     const { page = 1, limit = 10, search, categories } = req.query;
@@ -83,125 +82,56 @@ const productListByBrand = async (req: AuthRequest, res: Response) => {
     const limitNumber = Number(limit);
     const skip = (pageNumber - 1) * limitNumber;
 
-    const brand = await VendorModel.findById(brandId).select({
-      business_name: 1,
-      profile_image: 1,
-    });
-    if (!brand) {
-      return sendApiResponse(res, 404, "Brand not found");
+    const condition: any = {
+      vendorId: vendorId,
+      status: "ACTIVE",
+    }
+    let categoryFilter =null;
+
+    if (typeof categories === "string") {
+      categoryFilter = categories.split(","); // Convert to array
+    }
+    
+    if (categoryFilter && Array.isArray(categoryFilter)) {
+      condition.category = { $in: categoryFilter };
     }
 
-    // 1. Find all productIds under this brand
-    const vendorProducts = await VendorProductModel.find({
-      vendorId: brandId,
-    }).select("productId");
-    const vendorProductIds = vendorProducts.map((vp) =>
-      vp.productId.toString()
-    );
-
-    // 2. Build filter for all brand's products
-    let productFilter: any = {
-      _id: { $in: vendorProductIds },
-    };
-
-    if (search) {
-      productFilter.$or = [
+    if(search){
+      condition.$or = [
         { title: { $regex: search as string, $options: "i" } },
         { tags: { $in: [new RegExp(search as string, "i")] } },
       ];
     }
 
-    if (categories) {
-      const categoryArray =
-        typeof categories === "string"
-          ? categories.split(",").map((id) => id.trim())
-          : [];
+    // 1. Find all productIds under this brand
+    const vendorProducts = await ProductModel.find({
+      ...condition
+    }).skip(skip).limit(limitNumber).sort({createdAt: -1}).lean();
 
-      if (categoryArray.length > 0) {
-        // ✅ Cast to ObjectIds
-        const objectIds = categoryArray.map(
-          (id) => new mongoose.Types.ObjectId(id)
-        );
-        productFilter.category = { $in: objectIds };
-      }
-    }
-
-    // 3. Fetch filtered product list (raw, no pagination yet)
-    const productListRaw = await ProductModel.find(productFilter)
-      .populate("category")
-      .lean();
-
-    // 4. Get active campaigns for these products
-    const activeCampaigns = await CampaignModel.find({
-      productId: { $in: vendorProductIds },
-      status: "ACTIVE",
-    }).lean();
-
-    const campaignMap = new Map<string, any>();
-    activeCampaigns.forEach((c) => campaignMap.set(c.productId.toString(), c));
-
-    // 5. Fetch creator collaborations
     const collaborations = await CollaborationModel.find({
-      vendorId: brandId,
-      creatorId,
-      productId: { $in: vendorProductIds },
-    })
-      .populate("requestId")
-      .lean();
+      vendorId: vendorId,
+      creatorId: req.user._id,
+      productId: { $in: vendorProducts.map((item) => item._id) },
+    }).select("productId collaborationStatus").lean();
 
-    const collaborationMap = new Map<string, any>();
-    collaborations.forEach((c) => {
-      collaborationMap.set(c.productId.toString(), c);
+
+   const result = vendorProducts.map((item) => {
+    const collaboration = collaborations.find((collab) => collab.productId.toString() === item._id.toString());
+    return {
+      ...item,
+      collaborationStatus: collaboration ? collaboration.collaborationStatus : null,
+    };
+   });
+    
+    const count = await ProductModel.countDocuments({
+      ...condition
     });
 
-    // 6. Enrich products with campaign + collaboration data
-    const enrichedProducts = productListRaw.map((product) => {
-      const campaign = campaignMap.get(product._id.toString());
-      const collab = collaborationMap.get(product._id.toString());
-      const request = collab?.requestId || null;
-      delete collab?.requestId;
-
-      return {
-        ...product,
-        collaboration: collab || null,
-        request: request || null,
-        campaign: campaign
-          ? { _id: campaign._id, status: campaign.status }
-          : null,
-        vendor: brand,
-      };
+    return sendApiResponse(res, 200, "Product list fetched successfully", {
+      list: result,
+      total: count,
     });
 
-    // 7. Prioritize campaign products
-    const campaignProducts = enrichedProducts.filter((p) => p.campaign);
-    const normalProducts = enrichedProducts.filter((p) => !p.campaign);
-
-    // Insert campaign products every 3 slots (adjust as needed)
-    const mergedProducts: any[] = [];
-    let cpIndex = 0,
-      npIndex = 0;
-
-    while (mergedProducts.length < enrichedProducts.length) {
-      if (cpIndex < campaignProducts.length) {
-        mergedProducts.push(campaignProducts[cpIndex++]);
-      }
-      for (let i = 0; i < 3 && npIndex < normalProducts.length; i++) {
-        mergedProducts.push(normalProducts[npIndex++]);
-      }
-    }
-
-    // 8. Final paginated output
-    const paginated = mergedProducts.slice(skip, skip + limitNumber);
-
-    return sendApiResponse(
-      res,
-      200,
-      "Vendor's product list (creator-specific) with campaigns",
-      {
-        data: paginated,
-        count: enrichedProducts.length,
-      }
-    );
   } catch (error) {
     console.error(
       "Error while getting creator-specific brand product list",
@@ -512,8 +442,8 @@ const checkExistingBrandProductBeforeAdd = async (
 };
 
 export {
-  getBrandList,
-  productListByBrand,
+  getVendorList,
+  productListByVendorId,
   addNewProduct,
   brandProductList,
   editProduct,

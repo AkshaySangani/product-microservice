@@ -8,7 +8,7 @@ const upload = multer({ storage: multer.memoryStorage() }); // Initialize Multer
 
 const router = Router();
 
-router.get("/vendor/list", brandProductController.getBrandList); // get brand list
+router.get("/vendor/list", brandProductController.getVendorList); // get getVendorList list
 
 router.get(
   "/product/list",
@@ -17,10 +17,10 @@ router.get(
 ); // get brand wise product list
 
 router.get(
-  "/product/list/:brandId",
+  "/product/list/:vendorId",
   creatorAuthMiddleware,
-  brandProductController.productListByBrand
-); // get brand wise product list
+  brandProductController.productListByVendorId
+); // get vendor wise product list
 
 router.post(
   "/check-existing-product",
