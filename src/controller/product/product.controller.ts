@@ -197,4 +197,68 @@ const getProductById = async (req: Request, res: Response) => {
   }
 };
 
+// cron job to update product status based on startDate, endDate and lifeTime
+export const updateProductStatus = async () => {
+  const now = new Date();
+
+  try {
+    // Fetch only needed fields, use lean for performance
+    const products = await ProductModel.find({}, {
+      _id: 1,
+      status: 1,
+      startDate: 1,
+      endDate: 1,
+      lifeTime: 1,
+    }).lean();
+
+    const bulkOps: any[] = [];
+
+    for (const product of products) {
+      const { _id, startDate, endDate, lifeTime, status } = product;
+      let newStatus = status;
+
+      if (lifeTime) {
+        // Lifetime products should always remain ACTIVE
+        if (status !== "ACTIVE") {
+          newStatus = "ACTIVE";
+        } else {
+          continue;
+        }
+      } else {
+        if (startDate && now < new Date(startDate)) {
+          newStatus = "PENDING";
+        } else if (endDate && now > new Date(endDate)) {
+          newStatus = "EXPIRED";
+        } else if (
+          startDate &&
+          endDate &&
+          now >= new Date(startDate) &&
+          now <= new Date(endDate)
+        ) {
+          newStatus = "ACTIVE";
+        }
+      }
+
+      if (newStatus !== status) {
+        bulkOps.push({
+          updateOne: {
+            filter: { _id },
+            update: { $set: { status: newStatus } },
+          },
+        });
+      }
+    }
+
+    if (bulkOps.length > 0) {
+      await ProductModel.bulkWrite(bulkOps);
+      console.log(`Updated ${bulkOps.length} product statuses.`);
+    } else {
+      console.log("No product statuses needed updating.");
+    }
+  } catch (error) {
+    console.error("Error while updating product statuses:", error);
+  }
+};
+
+
 export { getProductList, getProductById };

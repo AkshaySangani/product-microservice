@@ -1,12 +1,12 @@
 import cron from "node-cron";
-import { updateCampaignStatuses } from "../controller/campaign/campaign.controller";
 import { updateCollaborationStatus } from "../controller/collaboration/collaboration.controller";
+import { updateProductStatus } from "../controller/product/product.controller";
 
-//Run at 0:10 Am every day
+//Run at 0:01 Am every day
 cron.schedule(
-  "10 0 * * *",
+  "1 0 * * *",
   async () => {
-    await updateCampaignStatuses();
+    await updateProductStatus();
   },
   {
     scheduled: true,
