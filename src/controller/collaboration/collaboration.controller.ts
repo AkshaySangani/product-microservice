@@ -485,7 +485,7 @@ const cancelCollaborationRequest = async (req: AuthRequest, res: Response) => {
     if (!collaboration) {
       return sendApiResponse(res, 404, "Collaboration not found.");
     }
-    const request: any = await RequestModel.findById(collaboration.requestId);
+    const request: any = await RequestModel.findById({_id: "collaboration.requestId"});
     if (!request) {
       return sendApiResponse(res, 404, "Request not found.");
     }
