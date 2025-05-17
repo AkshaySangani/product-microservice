@@ -507,14 +507,16 @@ const cancelCollaborationRequest = async (req: AuthRequest, res: Response) => {
 };
 
 const getCollaborationById = async (req: AuthRequest, res: Response) => {
+  const { _id } = req.user;
+  const userRole = req.userRole;
+  const { collaborationId } = req.params;
+
   try {
-    const { collaborationId } = req.params;
-    const collaboration = await CollaborationModel.findById(collaborationId)
-      .populate("requestId")
+    const collaboration = await CollaborationModel.findOne({_id:collaborationId, ...(userRole === "creator" ? {creatorId: _id} : {vendorId: _id})})
       .populate("productId")
       .populate({
         path: "creatorId",
-        select: " user_name profile_image", // Add the fields you want here
+        select: "user_name profile_image", // Add the fields you want here
       })
       .populate({
         path: "vendorId",

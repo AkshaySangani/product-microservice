@@ -1,5 +1,11 @@
 import { Request, Response } from "express";
-import { CollaborationModel, CreatorModel, ProductModel, RequestModel, VendorProductModel } from "../../../database/model";
+import {
+  CollaborationModel,
+  CreatorModel,
+  ProductModel,
+  RequestModel,
+  VendorProductModel,
+} from "../../../database/model";
 import sendApiResponse from "../../../common";
 import { AuthRequest } from "../../../types/authRequest";
 import { sendNotification } from "../../../common/sendNotification";
@@ -8,7 +14,7 @@ import { sendNotification } from "../../../common/sendNotification";
 const getCreatorWiseProductList = async (req: AuthRequest, res: Response) => {
   const { creatorId } = req.params;
   const { _id: vendorId } = req.user;
-
+  console.log("creatorId", creatorId);
   try {
     // Fetch products for the vendor
     const productList = await ProductModel.find({ vendorId, status: "ACTIVE" });
@@ -44,7 +50,10 @@ const getCreatorWiseProductList = async (req: AuthRequest, res: Response) => {
 };
 
 // send collaboration request to creator
-const sendCollaborationRequestToCreator = async (req: AuthRequest, res: Response) => {
+const sendCollaborationRequestToCreator = async (
+  req: AuthRequest,
+  res: Response
+) => {
   try {
     const { productIds, creatorId } = req.body;
     const { _id: vendorId } = req.user;
@@ -78,42 +87,46 @@ const sendCollaborationRequestToCreator = async (req: AuthRequest, res: Response
             vendorId,
           });
 
-          if (!vendorProduct) return { error: `Vendor not found for product ${productId}` };
+          if (!vendorProduct)
+            return { error: `Vendor not found for product ${productId}` };
 
           const collaboration = await CollaborationModel.findOne({
             creatorId,
             vendorId,
             productId,
           });
-          if (collaboration) return { error: `Collaboration already exists for product ${vendorProduct?.title}` };
+          if (collaboration)
+            return {
+              error: `Collaboration already exists for product ${vendorProduct?.title}`,
+            };
           // 4b. Check the channel (must be Shopify)
-        //   const channel = await ChannelModel.findOne({
-        //     vendorId,
-        //     channelType: vendorProduct.channelName,
-        //   });
-        //   if (!channel)
-        //     return { error: `Channel not found for vendor ${vendorId}` };
-        //   if (channel.channelType !== "shopify")
-        //     return { error: `Only Shopify products are supported` };
+          //   const channel = await ChannelModel.findOne({
+          //     vendorId,
+          //     channelType: vendorProduct.channelName,
+          //   });
+          //   if (!channel)
+          //     return { error: `Channel not found for vendor ${vendorId}` };
+          //   if (channel.channelType !== "shopify")
+          //     return { error: `Only Shopify products are supported` };
 
           // 4c. Check for existing collaboration
-        //   const existing = await CollaborationModel.findOne({
-        //     creatorId,
-        //     vendorId,
-        //     productId,
-        //   });
-        //   if (existing)
-        //     return {
-        //       message: `Collaboration already exists for product ${vendorProduct.productId?.title}`,
-        //       existing: true,
-        //     };
+          //   const existing = await CollaborationModel.findOne({
+          //     creatorId,
+          //     vendorId,
+          //     productId,
+          //   });
+          //   if (existing)
+          //     return {
+          //       message: `Collaboration already exists for product ${vendorProduct.productId?.title}`,
+          //       existing: true,
+          //     };
 
           // 4e. Create the Collaboration linked to the request
           const newCollaboration = new CollaborationModel({
             creatorId,
             vendorId,
             productId,
-            requestedBy: 'vendor',
+            requestedBy: "vendor",
             expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Default to 7 days from now
             collaborationStatus: "REQUESTED",
             commissionValue: 0,
@@ -126,15 +139,15 @@ const sendCollaborationRequestToCreator = async (req: AuthRequest, res: Response
           await newCollaboration.save();
 
           // 4f. Send notification to vendor
-        // sendNotification(
-        //     req,
-        //     [vendorId],
-        //     `New collaboration request from ${creator.full_name} for product ${vendorProduct?.title}`
-        //   );
+          // sendNotification(
+          //     req,
+          //     [vendorId],
+          //     `New collaboration request from ${creator.full_name} for product ${vendorProduct?.title}`
+          //   );
 
           return {
             message: `Collaboration created for product ${vendorProduct?.title}`,
-            data: { collaboration: newCollaboration},
+            data: { collaboration: newCollaboration },
           };
         } catch (innerError) {
           console.error("Error in product processing:", innerError);
@@ -157,13 +170,77 @@ const sendCollaborationRequestToCreator = async (req: AuthRequest, res: Response
   }
 };
 
+// cancel collaboration request by vendor
+const cancelCollaborationRequestByVendor = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  const { collaborationId } = req.params;
+  const { _id: vendorId } = req.user;
+  console.log("collaborationId", collaborationId, vendorId);
+  try {
+    const collaboration = await CollaborationModel.findOne({
+      _id: collaborationId,
+      vendorId,
+    });
+
+    if (!collaboration)
+      return sendApiResponse(res, 404, "Collaboration not found");
+
+    if (collaboration.collaborationStatus !== "REQUESTED")
+      return sendApiResponse(
+        res,
+        400,
+        "Collaboration request is not in requested status"
+      );
+
+    await CollaborationModel.findByIdAndDelete(collaborationId);
+    return sendApiResponse(res, 200, "Collaboration request cancelled");
+  } catch (error: any) {
+    return sendApiResponse(res, 500, "Internal server error", {
+      error: error.message,
+    });
+  }
+};
+
 const collaborationList = async (req: AuthRequest, res: Response) => {
   const { _id: vendorId } = req.user;
-  const { creatorId } = req.params;
+  const { page = 1, limit = 20 , status} = req.query;
 
-  const collaborationList = await CollaborationModel.find({
-    vendorId,
-    creatorId,
-  });
+  try {
+    const condition: any = {}
+
+    if(status) condition.collaborationStatus = status;
+
+    const collaborationList = await CollaborationModel.find({
+      vendorId,
+      ...condition
+    }).populate("productId").populate("creatorId").skip((Number(page) - 1) * Number(limit)).limit(Number(limit)).sort({createdAt: -1});
+
+    const count = await CollaborationModel.countDocuments({
+      vendorId,
+      ...condition
+    });
+
+    return sendApiResponse(
+      res,
+      200,
+      "Collaboration list fetched successfully",
+      {
+        list: collaborationList,
+        total: count,
+      }
+    );
+  } catch (error: any) {
+    return sendApiResponse(res, 500, "Internal server error", {
+      error: error.message,
+    });
+  }
 };
-export { getCreatorWiseProductList, sendCollaborationRequestToCreator };
+
+export {
+  getCreatorWiseProductList,
+  sendCollaborationRequestToCreator,
+  cancelCollaborationRequestByVendor,
+  collaborationList,
+};
