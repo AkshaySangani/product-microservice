@@ -24,7 +24,7 @@ export const commonAuthMiddleware = async (req: AuthRequest, res: Response, next
     try {
         // Verify and decode the JWT token
         const decoded: any = jwt.verify(token, SECRET_KEY);
-        console.log("Decoded token:", decoded);
+        // console.log("Decoded token:", decoded);
 
         // Find the account by ID
         const account = await AccountModel.findById(decoded._id);

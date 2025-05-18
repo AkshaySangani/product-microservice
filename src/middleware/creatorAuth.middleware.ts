@@ -17,7 +17,7 @@ export const creatorAuthMiddleware = async (req: AuthRequest, res: Response, nex
     try {
         // Verify and decode the token
         const decoded: any = jwt.verify(token, SECRET_KEY);
-        console.log("decoded", decoded);
+        // console.log("decoded", decoded);
 
         const account: any = await AccountModel.findById(decoded._id);
         if (!account) {

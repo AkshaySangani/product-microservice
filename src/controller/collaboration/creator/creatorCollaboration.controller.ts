@@ -96,4 +96,58 @@ const sendCollaborationRequestToVendor = async (
     }
   };
 
-  export { sendCollaborationRequestToVendor, cancelCollaborationRequestByCreator };
+  const collaborationList = async (req: AuthRequest, res: Response) => {
+    const { _id: creatorId } = req.user;
+    const { page = 1, limit = 20, status, search } = req.query;
+  
+    try {
+      const condition: any = {};
+  
+      if (status) condition.collaborationStatus = status;
+  
+      // Step 1: Filter by product title if `search` is passed
+      if (search) {
+        const matchingProducts = await ProductModel.find({
+          title: { $regex: new RegExp(search as string, "i") },
+          // creatorId,
+        }).select("_id").lean();
+  
+        const productIds = matchingProducts.map((p) => p._id);
+        condition.productId = { $in: productIds };
+      }
+  
+      const collaborationList = await CollaborationModel.find({
+        creatorId,
+        ...condition,
+      })
+        .populate({
+          path: "productId",
+          populate: [{ path: "category", model: "Category" }],
+        })
+        .populate("creatorId")
+        .skip((Number(page) - 1) * Number(limit))
+        .limit(Number(limit))
+        .sort({ createdAt: -1 });
+  
+      const count = await CollaborationModel.countDocuments({
+        creatorId,
+        ...condition,
+      });
+  
+      return sendApiResponse(
+        res,
+        200,
+        "Collaboration list fetched successfully",
+        {
+          list: collaborationList,
+          total: count,
+        }
+      );
+    } catch (error: any) {
+      return sendApiResponse(res, 500, "Internal server error", {
+        error: error.message,
+      });
+    }
+  };
+
+  export { sendCollaborationRequestToVendor, cancelCollaborationRequestByCreator, collaborationList };
