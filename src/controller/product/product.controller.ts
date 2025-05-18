@@ -203,13 +203,16 @@ export const updateProductStatus = async () => {
 
   try {
     // Fetch only needed fields, use lean for performance
-    const products = await ProductModel.find({}, {
-      _id: 1,
-      status: 1,
-      startDate: 1,
-      endDate: 1,
-      lifeTime: 1,
-    }).lean();
+    const products = await ProductModel.find(
+      {},
+      {
+        _id: 1,
+        status: 1,
+        startDate: 1,
+        endDate: 1,
+        lifeTime: 1,
+      }
+    ).lean();
 
     const bulkOps: any[] = [];
 
@@ -259,6 +262,5 @@ export const updateProductStatus = async () => {
     console.error("Error while updating product statuses:", error);
   }
 };
-
 
 export { getProductList, getProductById };
