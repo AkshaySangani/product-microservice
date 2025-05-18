@@ -3,6 +3,7 @@ import { collaborationController } from '../../controller';
 import { creatorAuthMiddleware } from '../../middleware/creatorAuth.middleware';
 import { commonAuthMiddleware } from '../../middleware/commonAuth.middleware';
 import { vendorCollaborationRouter } from './vendor';
+import { creatorCollaborationRouter } from './creator';
 const router = Router();
 
 router.post('/creator/request', commonAuthMiddleware, collaborationController.collaborationRequest); // creator request for collaboration
@@ -20,5 +21,7 @@ router.get('/:collaborationId', commonAuthMiddleware, collaborationController.ge
 router.put('/:collaborationId', commonAuthMiddleware, collaborationController.updateCollaborationDetails) // get collaboration by id
 
 router.use('/vendor', vendorCollaborationRouter);
+
+router.use('/creator', creatorCollaborationRouter);
 
 export { router as collaborationRouter };
