@@ -522,7 +522,7 @@ const getCollaborationById = async (req: AuthRequest, res: Response) => {
     })
       .populate({
         path: "productId",
-        populate: [{ path: "category" }, { path: "subcategory" }],
+        populate: [{ path: "category"  }],
       })
       .populate("bids")
       .populate({
