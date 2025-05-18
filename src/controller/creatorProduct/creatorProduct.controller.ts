@@ -268,6 +268,7 @@ const productSearchResultsForCreator = async (req: AuthRequest, res: Response) =
       let suggestedList : any= { suggestedProductList: [], total: 0 };
   
       if (productCount < 10) {
+        console.log("productCount", productCount);
         const creator = await CreatorModel.findById(req.user._id).select("category sub_category").lean();
   
         const suggestedCondition: any = {
@@ -281,7 +282,6 @@ const productSearchResultsForCreator = async (req: AuthRequest, res: Response) =
             .skip(skip)
             .limit(limitNumber)
             .populate("category")
-            .select({ creatorMaterial: -1 }) // ✅ only this field is excluded
             .lean(),
           ProductModel.countDocuments(suggestedCondition),
         ]);
