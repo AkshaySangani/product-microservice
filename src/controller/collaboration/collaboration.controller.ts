@@ -360,10 +360,6 @@ const requestStatusChange = async (req: AuthRequest, res: Response) => {
     const collaboration: any = await CollaborationModel.findById(
       collaborationId
     );
-    const request: any = await RequestModel.findById(collaboration.requestId);
-    if (!collaboration) {
-      return sendApiResponse(res, 404, "Collaboration not found");
-    }
 
     // -------------------- Role-Based Ownership Check --------------------
     if (
@@ -382,20 +378,17 @@ const requestStatusChange = async (req: AuthRequest, res: Response) => {
 
     // -------------------- Update Acceptance Flags --------------------
     if (status === "accepted") {
-      request.collaborationStatus = "ACCEPTED";
       collaboration.collaborationStatus = "PENDING";
     } else if (status === "rejected") {
-      request.collaborationStatus = "REJECTED";
+      collaboration.collaborationStatus = "REJECTED";
     }
 
     // -------------------- If Both Agreed, Mark as PENDING --------------------
     await collaboration.save();
-    await request.save();
 
     // -------------------- Final Response --------------------
     return sendApiResponse(res, 200, "Request status updated successfully", {
       collaboration,
-      request,
     });
   } catch (error: any) {
     console.error("Collaboration status update error:", error);
