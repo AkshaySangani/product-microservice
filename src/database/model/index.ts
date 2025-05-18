@@ -27,7 +27,7 @@ const ChannelModel = mongoose.model("Channel", ChannelSchema);
 const RequestModel = mongoose.model("Request", RequestSchema);
 const CampaignModel = mongoose.model("Campaign", CampaignSchema);
 const WishListModel = mongoose.model("WishList", WishListSchema);
-const BidModel = mongoose.model("Bid", biddingSchema);
+const BidModel = mongoose.model("Bidding", biddingSchema);
 
 export {
     ProductModel,
