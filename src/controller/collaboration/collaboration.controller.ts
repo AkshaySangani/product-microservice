@@ -521,6 +521,7 @@ const getCollaborationById = async (req: AuthRequest, res: Response) => {
       ...(userRole === "creator" ? { creatorId: _id } : { vendorId: _id }),
     })
       .populate("productId")
+      .populate("bids")
       .populate({
         path: "creatorId",
         select: "user_name profile_image", // Add the fields you want here
@@ -748,6 +749,30 @@ export const updateCollaborationStatus = async () => {
     );
   }
 };
+
+
+export const acceptCollaboration = async (req: AuthRequest, res: Response) => {
+  const { collaborationId } = req.params;
+  const { _id } = req.user;
+  const userRole = req.userRole;
+  
+  try{
+    const collaboration:any = await CollaborationModel.findById(collaborationId).populate("bids");
+    if (!collaboration) {
+      return sendApiResponse(res, 404, "Collaboration not found.");
+    }
+
+    collaboration.commissionValue = collaboration.bids[collaboration.bids.length - 1].proposal;
+    collaboration.collaborationStatus = "ACTIVE";
+    await collaboration.save();
+
+    return sendApiResponse(res, 200, "Collaboration accepted successfully", {
+      collaboration,
+    });
+  } catch (e){
+
+  }
+}
 
 export {
   collaborationRequest,
