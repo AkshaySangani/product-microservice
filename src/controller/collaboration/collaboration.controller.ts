@@ -8,6 +8,7 @@ import {
   CreatorModel,
   ProductModel,
   RequestModel,
+  BidModel,
 } from "../../database/model";
 import axios from "axios";
 import { BACKEND_URL, FRONTEND_URL } from "../../config";
@@ -359,7 +360,7 @@ const requestStatusChange = async (req: AuthRequest, res: Response) => {
     // -------------------- Fetch Collaboration --------------------
     const collaboration: any = await CollaborationModel.findById(
       collaborationId
-    );
+    ).populate("productId");
 
     // -------------------- Role-Based Ownership Check --------------------
     if (
@@ -379,6 +380,14 @@ const requestStatusChange = async (req: AuthRequest, res: Response) => {
     // -------------------- Update Acceptance Flags --------------------
     if (status === "accepted") {
       collaboration.collaborationStatus = "PENDING";
+      const newBid = new BidModel({
+        proposal: collaboration.productId.commission,
+        type: userRole === "creator" ? "vendor" : "creator",
+        sender: userRole,
+      });
+      await newBid.save();
+
+      collaboration.bids.push(newBid._id);
     } else if (status === "rejected") {
       collaboration.collaborationStatus = "REJECTED";
     }
@@ -478,7 +487,9 @@ const cancelCollaborationRequest = async (req: AuthRequest, res: Response) => {
     if (!collaboration) {
       return sendApiResponse(res, 404, "Collaboration not found.");
     }
-    const request: any = await RequestModel.findById({_id: "collaboration.requestId"});
+    const request: any = await RequestModel.findById({
+      _id: "collaboration.requestId",
+    });
     if (!request) {
       return sendApiResponse(res, 404, "Request not found.");
     }
@@ -505,7 +516,10 @@ const getCollaborationById = async (req: AuthRequest, res: Response) => {
   const { collaborationId } = req.params;
 
   try {
-    const collaboration = await CollaborationModel.findOne({_id:collaborationId, ...(userRole === "creator" ? {creatorId: _id} : {vendorId: _id})})
+    const collaboration = await CollaborationModel.findOne({
+      _id: collaborationId,
+      ...(userRole === "creator" ? { creatorId: _id } : { vendorId: _id }),
+    })
       .populate("productId")
       .populate({
         path: "creatorId",
@@ -532,158 +546,173 @@ const getCollaborationById = async (req: AuthRequest, res: Response) => {
 };
 
 export const updateCollaborationDetails = async (
-    req: AuthRequest,
-    res: Response
-  ) => {
-    const { collaborationId } = req.params;
-    const userRole = req.userRole;
-  
-    try {
-      const {
-        vendorProposal,
-        creatorProposal,
-        discountType,
-        discountValue,
-        couponCode,
-        commissionValue,
-        commissionType,
-        startAt,
-        expiresAt,
-        agreedByCreator,
-        agreedByVendor,
-      } = req.body;
-  
-      // -------- Fetch the collaboration --------
-      const collaboration: any = await CollaborationModel.findById(collaborationId);
-      if (!collaboration) {
-        return sendApiResponse(res, 404, "Collaboration not found.");
-      }
-  
-      if (collaboration.collaborationStatus !== "PENDING") {
-        return sendApiResponse(
-          res,
-          400,
-          `Cannot modify ${collaboration.collaborationStatus} collaboration.`
-        );
-      }
-  
-      let isProposalUpdated = false;
-  
-      // -------- Update negotiation proposals --------
-      if (
-        userRole === "creator" &&
-        creatorProposal !== undefined &&
-        creatorProposal !== null &&
-        creatorProposal !== collaboration.negotiation.creatorProposal
-      ) {
-        collaboration.negotiation.creatorProposal = creatorProposal;
-        collaboration.commissionValue = creatorProposal;
-        isProposalUpdated = true;
-      }
-  
-      if (
-        userRole === "vendor" &&
-        vendorProposal !== undefined &&
-        vendorProposal !== null &&
-        vendorProposal !== collaboration.negotiation.vendorProposal
-      ) {
-        console.log("hello--",vendorProposal)
-        collaboration.negotiation.vendorProposal = vendorProposal;
-        collaboration.commissionValue = vendorProposal;
-        isProposalUpdated = true;
-      }
-  
-      // -------- Handle explicit commission value --------
-      if (
-        commissionValue !== undefined &&
-        commissionValue !== null &&
-        commissionValue !== collaboration.commissionValue
-      ) {
-        collaboration.commissionValue = commissionValue;
-        isProposalUpdated = true;
-      }
-  
-      // -------- Fields to check dynamically --------
-      const fieldsToUpdate = [
-        { field: "discountType", value: discountType },
-        { field: "discountValue", value: discountValue },
-        { field: "couponCode", value: couponCode },
-        { field: "commissionType", value: commissionType },
-        { field: "startAt", value: startAt ? new Date(startAt) : undefined },
-        { field: "expiresAt", value: expiresAt ? new Date(expiresAt) : undefined },
-      ];
-  
-      for (const { field, value } of fieldsToUpdate) {
-        if (value !== undefined && value !== null) {
-          const currentValue = collaboration[field];
-  
-          // Handle Date comparison differently
-          const isDifferent = currentValue instanceof Date
+  req: AuthRequest,
+  res: Response
+) => {
+  const { collaborationId } = req.params;
+  const userRole = req.userRole;
+
+  try {
+    const {
+      vendorProposal,
+      creatorProposal,
+      discountType,
+      discountValue,
+      couponCode,
+      commissionValue,
+      commissionType,
+      startAt,
+      expiresAt,
+      agreedByCreator,
+      agreedByVendor,
+    } = req.body;
+
+    // -------- Fetch the collaboration --------
+    const collaboration: any = await CollaborationModel.findById(
+      collaborationId
+    );
+    if (!collaboration) {
+      return sendApiResponse(res, 404, "Collaboration not found.");
+    }
+
+    if (collaboration.collaborationStatus !== "PENDING") {
+      return sendApiResponse(
+        res,
+        400,
+        `Cannot modify ${collaboration.collaborationStatus} collaboration.`
+      );
+    }
+
+    let isProposalUpdated = false;
+
+    // -------- Update negotiation proposals --------
+    if (
+      userRole === "creator" &&
+      creatorProposal !== undefined &&
+      creatorProposal !== null &&
+      creatorProposal !== collaboration.negotiation.creatorProposal
+    ) {
+      collaboration.negotiation.creatorProposal = creatorProposal;
+      collaboration.commissionValue = creatorProposal;
+      isProposalUpdated = true;
+    }
+
+    if (
+      userRole === "vendor" &&
+      vendorProposal !== undefined &&
+      vendorProposal !== null &&
+      vendorProposal !== collaboration.negotiation.vendorProposal
+    ) {
+      console.log("hello--", vendorProposal);
+      collaboration.negotiation.vendorProposal = vendorProposal;
+      collaboration.commissionValue = vendorProposal;
+      isProposalUpdated = true;
+    }
+
+    // -------- Handle explicit commission value --------
+    if (
+      commissionValue !== undefined &&
+      commissionValue !== null &&
+      commissionValue !== collaboration.commissionValue
+    ) {
+      collaboration.commissionValue = commissionValue;
+      isProposalUpdated = true;
+    }
+
+    // -------- Fields to check dynamically --------
+    const fieldsToUpdate = [
+      { field: "discountType", value: discountType },
+      { field: "discountValue", value: discountValue },
+      { field: "couponCode", value: couponCode },
+      { field: "commissionType", value: commissionType },
+      { field: "startAt", value: startAt ? new Date(startAt) : undefined },
+      {
+        field: "expiresAt",
+        value: expiresAt ? new Date(expiresAt) : undefined,
+      },
+    ];
+
+    for (const { field, value } of fieldsToUpdate) {
+      if (value !== undefined && value !== null) {
+        const currentValue = collaboration[field];
+
+        // Handle Date comparison differently
+        const isDifferent =
+          currentValue instanceof Date
             ? new Date(currentValue).getTime() !== new Date(value).getTime()
             : currentValue !== value;
-  
-          if (isDifferent) {
-            collaboration[field] = value;
-            isProposalUpdated = true;
-          }
+
+        if (isDifferent) {
+          collaboration[field] = value;
+          isProposalUpdated = true;
         }
       }
-  
-      // -------- Reset agreements only if real update happened --------
-      if (isProposalUpdated) {
-        if (userRole === "creator") {
-          collaboration.negotiation.agreedByVendor = false;
-          collaboration.negotiation.agreedByCreator = true;
-        }
-        if (userRole === "vendor") {
-          collaboration.negotiation.agreedByVendor = true;
-          collaboration.negotiation.agreedByCreator = false;
-        }
-      }
-  
-      // -------- Explicit agreement overrides --------
-      if (agreedByCreator !== undefined)
-        collaboration.negotiation.agreedByCreator = agreedByCreator;
-      if (agreedByVendor !== undefined)
-        collaboration.negotiation.agreedByVendor = agreedByVendor;
-  
-      await collaboration.save();
-  
-      return res.status(200).json({
-        message: "Collaboration details updated successfully.",
-        data: collaboration,
-      });
-    } catch (error: any) {
-      console.error("Error while updating collaboration details:", error);
-      return res.status(500).json({
-        message: "Internal server error.",
-        error: error?.message || "Unexpected error",
-      });
     }
-  };
 
-export const updateCollaborationCrmLink = async (req: AuthRequest, res: Response) => {
-    const { collaborationId } = req.params;
-
-    try {
-      const collaboration : any = await CollaborationModel.findById(collaborationId).populate('creatorId');
-      if (!collaboration) {
-        return sendApiResponse(res, 404, "Collaboration not found.");
+    // -------- Reset agreements only if real update happened --------
+    if (isProposalUpdated) {
+      if (userRole === "creator") {
+        collaboration.negotiation.agreedByVendor = false;
+        collaboration.negotiation.agreedByCreator = true;
       }
-
-      const crmLink = FRONTEND_URL + '/creators/' + collaboration.creatorId.user_name + '/' + collaboration._id;
-
-      collaboration.crmLink = crmLink;
-      await collaboration.save(); 
-      return await createShopifyUTM(req, res);
-    } catch (error: any) {
-      console.error("Error while updating collaboration CRM link:", error);
-      return sendApiResponse(res, 500, "Internal server error", {
-        error: error?.message || "Unexpected error",
-      });
+      if (userRole === "vendor") {
+        collaboration.negotiation.agreedByVendor = true;
+        collaboration.negotiation.agreedByCreator = false;
+      }
     }
-  };
 
+    // -------- Explicit agreement overrides --------
+    if (agreedByCreator !== undefined)
+      collaboration.negotiation.agreedByCreator = agreedByCreator;
+    if (agreedByVendor !== undefined)
+      collaboration.negotiation.agreedByVendor = agreedByVendor;
+
+    await collaboration.save();
+
+    return res.status(200).json({
+      message: "Collaboration details updated successfully.",
+      data: collaboration,
+    });
+  } catch (error: any) {
+    console.error("Error while updating collaboration details:", error);
+    return res.status(500).json({
+      message: "Internal server error.",
+      error: error?.message || "Unexpected error",
+    });
+  }
+};
+
+export const updateCollaborationCrmLink = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  const { collaborationId } = req.params;
+
+  try {
+    const collaboration: any = await CollaborationModel.findById(
+      collaborationId
+    ).populate("creatorId");
+    if (!collaboration) {
+      return sendApiResponse(res, 404, "Collaboration not found.");
+    }
+
+    const crmLink =
+      FRONTEND_URL +
+      "/creators/" +
+      collaboration.creatorId.user_name +
+      "/" +
+      collaboration._id;
+
+    collaboration.crmLink = crmLink;
+    await collaboration.save();
+    return await createShopifyUTM(req, res);
+  } catch (error: any) {
+    console.error("Error while updating collaboration CRM link:", error);
+    return sendApiResponse(res, 500, "Internal server error", {
+      error: error?.message || "Unexpected error",
+    });
+  }
+};
 
 // Runs every hour to update collaboration status
 export const updateCollaborationStatus = async () => {
@@ -713,11 +742,13 @@ export const updateCollaborationStatus = async () => {
     );
     console.log(`Activated collaborations: ${activatedResult.modifiedCount}`);
   } catch (error: any) {
-    console.error("Error while updating collaboration status cron:", error.message);
+    console.error(
+      "Error while updating collaboration status cron:",
+      error.message
+    );
   }
 };
 
-  
 export {
   collaborationRequest,
   getCollaborationList,

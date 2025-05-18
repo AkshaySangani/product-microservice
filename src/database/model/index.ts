@@ -12,6 +12,7 @@ import ChannelSchema from "../../../../shared-models/src/models/channel";
 import RequestSchema from "../../../../shared-models/src/models/request";
 import CampaignSchema from "../../../../shared-models/src/models/campaign";
 import WishListSchema from "../../../../shared-models/src/models/wishList";
+import {biddingSchema} from "../../../../shared-models/src/models/collaboration";
 
 const ProductModel = mongoose.model("Product", ProductSchema);
 const CategoryModel = mongoose.model("Category", CategorySchema);
@@ -26,6 +27,7 @@ const ChannelModel = mongoose.model("Channel", ChannelSchema);
 const RequestModel = mongoose.model("Request", RequestSchema);
 const CampaignModel = mongoose.model("Campaign", CampaignSchema);
 const WishListModel = mongoose.model("WishList", WishListSchema);
+const BidModel = mongoose.model("Bid", biddingSchema);
 
 export {
     ProductModel,
@@ -40,5 +42,6 @@ export {
     ChannelModel,
     RequestModel,
     CampaignModel,
-    WishListModel
+    WishListModel,
+    BidModel
 };
