@@ -215,7 +215,12 @@ const collaborationList = async (req: AuthRequest, res: Response) => {
     const collaborationList = await CollaborationModel.find({
       vendorId,
       ...condition
-    }).populate("productId").populate("creatorId").skip((Number(page) - 1) * Number(limit)).limit(Number(limit)).sort({createdAt: -1});
+    }).populate({
+      path: "productId",
+      populate: [
+        { path: "category", model: "Category" },
+      ]
+    }).populate("creatorId").skip((Number(page) - 1) * Number(limit)).limit(Number(limit)).sort({createdAt: -1});
 
     const count = await CollaborationModel.countDocuments({
       vendorId,
