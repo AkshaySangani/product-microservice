@@ -786,7 +786,7 @@ const activateCollaboration = async (req: AuthRequest, res: Response) => {
     collaboration.collaborationStatus = "ACTIVE";
     collaboration.utmLink = "https://www.google.co.in";
     collaboration.crmLink = "https://www.google.co.in";
-    collaboration.discountValue = collaboration.productId.disconnect;
+    collaboration.discountValue = collaboration.productId.discount;
     collaboration.discountType = collaboration.productId.discountType;
     collaboration.couponCode = collaboration.productId.couponCode;
 
