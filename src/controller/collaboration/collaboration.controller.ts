@@ -520,7 +520,10 @@ const getCollaborationById = async (req: AuthRequest, res: Response) => {
       _id: collaborationId,
       ...(userRole === "creator" ? { creatorId: _id } : { vendorId: _id }),
     })
-      .populate("productId")
+      .populate({
+        path: "productId",
+        populate: [{ path: "category" }, { path: "subcategory" }],
+      })
       .populate("bids")
       .populate({
         path: "creatorId",
@@ -750,39 +753,51 @@ export const updateCollaborationStatus = async () => {
   }
 };
 
-
 const activateCollaboration = async (req: AuthRequest, res: Response) => {
   const { collaborationId } = req.params;
   const { _id } = req.user;
   const userRole = req.userRole;
-  
-  try{
-    const collaboration:any = await CollaborationModel.findById(collaborationId).populate("bids").populate("productId");
+
+  try {
+    const collaboration: any = await CollaborationModel.findById(
+      collaborationId
+    )
+      .populate("bids")
+      .populate("productId");
     if (!collaboration) {
       return sendApiResponse(res, 404, "Collaboration not found.");
     }
 
-    if(!collaboration.negotiation.agreedByCreator && !collaboration.negotiation.agreedByVendor){
-      return sendApiResponse(res, 400, "Collaboration not accepted by both parties");
+    if (
+      !collaboration.negotiation.agreedByCreator &&
+      !collaboration.negotiation.agreedByVendor
+    ) {
+      return sendApiResponse(
+        res,
+        400,
+        "Collaboration not accepted by both parties"
+      );
     }
 
-    collaboration.commissionValue = collaboration.bids[collaboration.bids.length - 1].proposal;
-    collaboration.commissionType = collaboration.bids[collaboration.bids.length - 1].type;
+    collaboration.commissionValue =
+      collaboration.bids[collaboration.bids.length - 1].proposal;
+    collaboration.commissionType =
+      collaboration.bids[collaboration.bids.length - 1].type;
     collaboration.collaborationStatus = "ACTIVE";
-    collaboration.utmLink = "https://www.google.co.in"
-    collaboration.crmLink = "https://www.google.co.in"
-    collaboration.discountValue = collaboration.productId.disconnect
-    collaboration.discountType = collaboration.productId.discountType
-    collaboration.couponCode = collaboration.productId.couponCode
+    collaboration.utmLink = "https://www.google.co.in";
+    collaboration.crmLink = "https://www.google.co.in";
+    collaboration.discountValue = collaboration.productId.disconnect;
+    collaboration.discountType = collaboration.productId.discountType;
+    collaboration.couponCode = collaboration.productId.couponCode;
 
     return sendApiResponse(res, 200, "Collaboration activated successfully", {
       collaboration,
     });
-  } catch (e){
+  } catch (e) {
     console.error("Error while accepting collaboration:", e);
     return sendApiResponse(res, 500, "Internal server error", null, e);
   }
-}
+};
 
 export {
   collaborationRequest,
