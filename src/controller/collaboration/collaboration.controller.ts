@@ -779,8 +779,8 @@ const activateCollaboration = async (req: AuthRequest, res: Response) => {
     }
 
     if (
-      (userRole === 'creator' && !collaboration.negotiation.agreedByVendor) ||
-      (userRole === 'vendor' && !collaboration.negotiation.agreedByCreator)
+      (userRole === "creator" && !collaboration.negotiation.agreedByVendor) ||
+      (userRole === "vendor" && !collaboration.negotiation.agreedByCreator)
     ) {
       return sendApiResponse(
         res,
@@ -799,7 +799,8 @@ const activateCollaboration = async (req: AuthRequest, res: Response) => {
     collaboration.discountValue = collaboration.productId.discount;
     collaboration.discountType = collaboration.productId.discountType;
     collaboration.couponCode = collaboration.productId.couponCode;
-
+    
+    await collaboration.save();
     return sendApiResponse(res, 200, "Collaboration activated successfully", {
       collaboration,
     });
