@@ -769,8 +769,8 @@ const activateCollaboration = async (req: AuthRequest, res: Response) => {
     }
 
     if (
-      !collaboration.negotiation.agreedByCreator &&
-      !collaboration.negotiation.agreedByVendor
+      (userRole === 'creator' && !collaboration.negotiation.agreedByVendor) ||
+      (userRole === 'vendor' && !collaboration.negotiation.agreedByCreator)
     ) {
       return sendApiResponse(
         res,
