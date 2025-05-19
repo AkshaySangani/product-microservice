@@ -530,7 +530,6 @@ const getCollaborationById = async (req: AuthRequest, res: Response) => {
       .populate("bids")
       .populate({
         path: "creatorId",
-        select: "user_name profile_image", // Add the fields you want here
       })
       .populate({
         path: "vendorId",
@@ -766,6 +765,8 @@ const activateCollaboration = async (req: AuthRequest, res: Response) => {
       collaborationId
     )
       .populate("bids")
+      .populate("creatorId")
+      .populate("vendorId")
       .populate({
         path: "productId",
         populate: [
