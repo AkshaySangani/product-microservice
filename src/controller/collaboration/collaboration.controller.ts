@@ -522,7 +522,10 @@ const getCollaborationById = async (req: AuthRequest, res: Response) => {
     })
       .populate({
         path: "productId",
-        populate: [{ path: "category"  }],
+        populate: [
+          { path: "category", model: "Category" },
+          { path: "subcategory", model: "Category" },
+        ],
       })
       .populate("bids")
       .populate({
@@ -763,7 +766,13 @@ const activateCollaboration = async (req: AuthRequest, res: Response) => {
       collaborationId
     )
       .populate("bids")
-      .populate("productId");
+      .populate({
+        path: "productId",
+        populate: [
+          { path: "category", model: "Category" },
+          { path: "subcategory", model: "Category" },
+        ],
+      });
     if (!collaboration) {
       return sendApiResponse(res, 404, "Collaboration not found.");
     }
