@@ -7,7 +7,7 @@ import {
   VendorProductModel,
 } from "../../database/model";
 import { AuthRequest } from "../../types/authRequest";
-import { BACKEND_URL } from "../../config";
+import { BACKEND_URL, SHOPIFY_API_KEY, SHOPIFY_URL } from "../../config";
 
 /**
  * @desc Generate UTM link for a collaboration (only if the vendor's channel is Shopify)
@@ -103,3 +103,40 @@ export const createShopifyUTM = async (req: AuthRequest, res: Response) => {
     return false;
   }
 };
+
+export const createShopifyUTMnew = async (data: any) => {
+  const { shopUrl, productIdentifier,crmAffiliateId, couponCode, couponDiscountType, couponDiscountValue } = data;
+  try{
+    const apiKey = SHOPIFY_API_KEY;
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+    };
+
+    if (apiKey) {
+      headers["x-crm-api-key"] = apiKey;
+    }
+    
+    const response = await fetch(`${SHOPIFY_URL}/crm/generate-trackable-link`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        shopUrl,
+        productIdentifier,
+        identifierType: 'id',
+        crmAffiliateId,
+        couponCode,
+        couponDiscountType: "PERCENTAGE", // or "FIXED_AMOUNT"
+        couponDiscountValue,
+        // couponStartDate: '', // ISO format if needed
+        // couponEndDate: '',   // ISO format if needed
+      }),
+    });
+  
+    const data = await response.json();
+    console.log('Response:', data);
+    return data;
+  }catch (e: any){
+    console.error("Error generating UTM link:", e);
+    throw new Error("Error generating UTM link:");
+  }
+}

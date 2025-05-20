@@ -13,7 +13,10 @@ import {
 import axios from "axios";
 import { BACKEND_URL, FRONTEND_URL } from "../../config";
 import { sendNotification } from "../../common/sendNotification";
-import { createShopifyUTM } from "../utm-link/utm.controller";
+import {
+  createShopifyUTM,
+  createShopifyUTMnew,
+} from "../utm-link/utm.controller";
 
 const collaborationRequest = async (req: AuthRequest, res: Response) => {
   try {
@@ -789,13 +792,39 @@ const activateCollaboration = async (req: AuthRequest, res: Response) => {
       );
     }
 
+    const channel = await ChannelModel.findOne({
+      vendorId: collaboration.vendorId,
+      channelType: collaboration.productId.channelName,
+    });
+
+    const crmLinkData = await createShopifyUTMnew({
+      shopUrl: channel?.channelConfig?.domain,
+      productIdentifier: collaboration.productId.channelProductId,
+      crmAffiliateId: collaboration.id,
+      couponCode: collaboration.productId.couponCode,
+      couponDiscountType: collaboration.productId.discountType,
+      couponDiscountValue: collaboration.productId.discount,
+    });
+
+    if (crmLinkData.shareableLink) {
+      collaboration.crmLink =
+        FRONTEND_URL +
+        "/creators/" +
+        collaboration.creatorId.user_name +
+        "/" +
+        collaboration._id;
+      collaboration.utmLink = crmLinkData.shareableLink;
+      collaboration.utmLinkIdentifier = crmLinkData.utmappLinkId;
+    } else {
+      console.log("Error while generating UTM link", crmLinkData);
+      return sendApiResponse(res, 400, "Error while generating UTM link");
+    }
+
     collaboration.commissionValue =
       collaboration.bids[collaboration.bids.length - 1].proposal;
     collaboration.commissionType =
       collaboration.bids[collaboration.bids.length - 1].type;
     collaboration.collaborationStatus = "ACTIVE";
-    collaboration.utmLink = "https://www.google.co.in";
-    collaboration.crmLink = "https://www.google.co.in";
     collaboration.discountValue = collaboration.productId.discount;
     collaboration.discountType = collaboration.productId.discountType;
     collaboration.couponCode = collaboration.productId.couponCode;
