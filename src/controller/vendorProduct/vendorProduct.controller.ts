@@ -292,16 +292,23 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
 
       // Merge API product data and request body (which includes metadata fields)
       const fullProduct = {
-        title: productData.title,
+        title: productData.name,
         channelProductId: productData.id,
-        price: productData.variants.nodes[0].price,
+        price: productData.variants[0].price,
         sku: productData.handle,
         description: productData.description || "",
         media:
-          productData.media?.nodes?.length > 0
-            ? productData.media?.nodes.map((item: any) => item?.image?.url)
+          productData.images?.length > 0
+            ? productData.images?.map((item: any) => item?.image?.src)
             : [],
         channelName,
+        channelProductType: productData.productType,
+        channelProductVendor: productData.vendor,
+        variants: productData.variants.map((item: any) => ({
+          sku: item.sku,
+          price: item.price,
+          title: item.title,
+        })),
         vendorId,
         creatorMaterial, // ⬅️ this now comes from uploaded files
         ...value, // Includes category, tags, commission, etc.

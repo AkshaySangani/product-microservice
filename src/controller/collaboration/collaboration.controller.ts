@@ -354,8 +354,8 @@ const getCollaborationList = async (req: AuthRequest, res: Response) => {
 
 const requestStatusChange = async (req: AuthRequest, res: Response) => {
   const { collaborationId, status } = req.body;
-  const { _id, userRole } = req.user; // Logged-in user's ID and role
-
+  const { _id } = req.user; // Logged-in user's ID and role
+  const userRole = req.userRole;
   try {
     // -------------------- Fetch Collaboration --------------------
     const collaboration: any = await CollaborationModel.findById(
@@ -799,7 +799,7 @@ const activateCollaboration = async (req: AuthRequest, res: Response) => {
     collaboration.discountValue = collaboration.productId.discount;
     collaboration.discountType = collaboration.productId.discountType;
     collaboration.couponCode = collaboration.productId.couponCode;
-    
+
     await collaboration.save();
     return sendApiResponse(res, 200, "Collaboration activated successfully", {
       collaboration,
