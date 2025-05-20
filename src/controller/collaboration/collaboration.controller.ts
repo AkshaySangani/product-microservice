@@ -382,7 +382,7 @@ const requestStatusChange = async (req: AuthRequest, res: Response) => {
       collaboration.collaborationStatus = "PENDING";
       const newBid = new BidModel({
         proposal: collaboration.productId.commission,
-        type: userRole === "creator" ? "vendor" : "creator",
+        type: collaboration.productId.commission_type,
         sender: userRole,
       });
       await newBid.save();
