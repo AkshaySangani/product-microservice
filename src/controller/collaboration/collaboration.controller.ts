@@ -807,11 +807,10 @@ const activateCollaboration = async (req: AuthRequest, res: Response) => {
     });
 
     if (crmLinkData.shareableLink) {
+      console.log("crm linkd",FRONTEND_URL)
       collaboration.crmLink =
         FRONTEND_URL +
-        "/creators/" +
-        collaboration.creatorId.user_name +
-        "/" +
+        "/product-detail/" +
         collaboration._id;
       collaboration.utmLink = crmLinkData.shareableLink;
       collaboration.utmLinkIdentifier = crmLinkData.utmappLinkId;
