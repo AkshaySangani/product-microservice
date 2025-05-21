@@ -125,7 +125,7 @@ export const createShopifyUTMnew = async (data: any) => {
         identifierType: 'id',
         crmAffiliateId,
         couponCode,
-        couponDiscountType: "PERCENTAGE", // or "FIXED_AMOUNT"
+        couponDiscountType: couponDiscountType, // or "FIXED_AMOUNT"
         couponDiscountValue,
         // couponStartDate: '', // ISO format if needed
         // couponEndDate: '',   // ISO format if needed
