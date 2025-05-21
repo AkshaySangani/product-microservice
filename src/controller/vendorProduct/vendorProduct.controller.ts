@@ -299,7 +299,7 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
         description: productData.description || "",
         media:
           productData.images?.length > 0
-            ? productData.images?.map((item: any) => item?.image?.src)
+            ? productData.images?.map((item: any) => item?.src)
             : [],
         channelName,
         channelProductType: productData.productType,
