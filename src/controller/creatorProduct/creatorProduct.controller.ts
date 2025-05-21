@@ -269,7 +269,6 @@ const productSearchResultsForCreator = async (req: AuthRequest, res: Response) =
       let suggestedList : any= { suggestedProductList: [], total: 0 };
   
       if (productCount < 10) {
-        console.log("productCount", productCount);
         const creator = await CreatorModel.findById(req.user._id).select("category sub_category").lean();
   
         const suggestedCondition: any = {
