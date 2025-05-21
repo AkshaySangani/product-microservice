@@ -430,7 +430,7 @@ const getCollaborationStatusByProduct = async (
       const collaboration = await CollaborationModel.findOne({
         creatorId: _id,
         productId,
-      }).populate("requestId");
+      })
 
       return sendApiResponse(
         res,
@@ -451,7 +451,7 @@ const getCollaborationStatusByProduct = async (
         vendorId: _id,
         productId,
         creatorId,
-      }).populate("requestId");
+      });
 
       return sendApiResponse(
         res,
