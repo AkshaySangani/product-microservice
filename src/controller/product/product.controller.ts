@@ -182,14 +182,12 @@ const getProductById = async (req: Request, res: Response) => {
         path: "category",
       })
       .lean();
-    const vendorProduct = await VendorProductModel.findOne({
-      productId,
-    }).select("vendorId");
+   
     if (!product) {
       return sendApiResponse(res, 404, "Product not found");
     }
     return sendApiResponse(res, 200, "Product fetched successfully", {
-      data: { ...product, vendorId: vendorProduct?.vendorId },
+      data: product ,
     });
   } catch (error) {
     console.error("Error while fetching product by id", error);
