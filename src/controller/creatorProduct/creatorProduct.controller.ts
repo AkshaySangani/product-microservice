@@ -252,6 +252,7 @@ const productSearchResultsForCreator = async (req: AuthRequest, res: Response) =
       if (productIds.length > 0) {
         const collaborationList = await CollaborationModel.find({
           productId: { $in: productIds },
+          creatorId: req.user._id
         }).lean().select("collaborationStatus productId");
   
         collaborationList.forEach(collab => {
@@ -292,6 +293,7 @@ const productSearchResultsForCreator = async (req: AuthRequest, res: Response) =
         if (suggestedIds.length > 0) {
           const suggestedCollabs = await CollaborationModel.find({
             productId: { $in: suggestedIds },
+            creatorId: req.user._id
           }).select("collaborationStatus productId").lean();
   
           suggestedCollabs.forEach(collab => {
