@@ -13,6 +13,8 @@ import RequestSchema from "../../../../shared-models/src/models/request";
 import CampaignSchema from "../../../../shared-models/src/models/campaign";
 import WishListSchema from "../../../../shared-models/src/models/wishList";
 import {biddingSchema} from "../../../../shared-models/src/models/collaboration";
+import PlanSchema from "../../../../shared-models/src/models/plan"; 
+import SubscriptionSchema from "../../../../shared-models/src/models/subscription";
 
 const ProductModel = mongoose.model("Product", ProductSchema);
 const CategoryModel = mongoose.model("Category", CategorySchema);
@@ -28,6 +30,8 @@ const RequestModel = mongoose.model("Request", RequestSchema);
 const CampaignModel = mongoose.model("Campaign", CampaignSchema);
 const WishListModel = mongoose.model("WishList", WishListSchema);
 const BidModel = mongoose.model("Bidding", biddingSchema);
+const PlanModel = mongoose.model("Plan", PlanSchema);
+const SubscriptionModel = mongoose.model("Subscription", SubscriptionSchema);
 
 export {
     ProductModel,
@@ -43,5 +47,7 @@ export {
     RequestModel,
     CampaignModel,
     WishListModel,
-    BidModel
+    BidModel,
+    PlanModel,
+    SubscriptionModel
 };

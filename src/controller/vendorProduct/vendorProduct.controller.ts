@@ -12,6 +12,7 @@ import { BACKEND_URL } from "../../config";
 import mongoose from "mongoose";
 import { productValidationSchema } from "./validation/index";
 import { uploadToS3 } from "../../lib/s3";
+import { planDetails } from "../../common/planDetails";
 
 const getVendorList = async (req: Request, res: Response) => {
   try {
@@ -85,18 +86,18 @@ const productListByVendorId = async (req: AuthRequest, res: Response) => {
     const condition: any = {
       vendorId: vendorId,
       status: "ACTIVE",
-    }
-    let categoryFilter =null;
+    };
+    let categoryFilter = null;
 
     if (typeof categories === "string") {
       categoryFilter = categories.split(","); // Convert to array
     }
-    
+
     if (categoryFilter && Array.isArray(categoryFilter)) {
       condition.category = { $in: categoryFilter };
     }
 
-    if(search){
+    if (search) {
       condition.$or = [
         { title: { $regex: search as string, $options: "i" } },
         { tags: { $in: [new RegExp(search as string, "i")] } },
@@ -105,33 +106,41 @@ const productListByVendorId = async (req: AuthRequest, res: Response) => {
 
     // 1. Find all productIds under this brand
     const vendorProducts = await ProductModel.find({
-      ...condition
-    }).skip(skip).limit(limitNumber).sort({createdAt: -1}).lean();
+      ...condition,
+    })
+      .skip(skip)
+      .limit(limitNumber)
+      .sort({ createdAt: -1 })
+      .lean();
 
     const collaborations = await CollaborationModel.find({
       vendorId: vendorId,
       creatorId: req.user._id,
       productId: { $in: vendorProducts.map((item) => item._id) },
-    }).select("productId collaborationStatus").lean();
+    })
+      .select("productId collaborationStatus")
+      .lean();
 
+    const result = vendorProducts.map((item) => {
+      const collaboration = collaborations.find(
+        (collab) => collab.productId.toString() === item._id.toString()
+      );
+      return {
+        ...item,
+        collaborationStatus: collaboration
+          ? collaboration.collaborationStatus
+          : null,
+      };
+    });
 
-   const result = vendorProducts.map((item) => {
-    const collaboration = collaborations.find((collab) => collab.productId.toString() === item._id.toString());
-    return {
-      ...item,
-      collaborationStatus: collaboration ? collaboration.collaborationStatus : null,
-    };
-   });
-    
     const count = await ProductModel.countDocuments({
-      ...condition
+      ...condition,
     });
 
     return sendApiResponse(res, 200, "Product list fetched successfully", {
       list: result,
       total: count,
     });
-
   } catch (error) {
     console.error(
       "Error while getting creator-specific brand product list",
@@ -238,6 +247,49 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
       );
     }
 
+
+    const productCount = await ProductModel.countDocuments({
+      vendorId: vendorId,
+    });
+    //check plan details before adding product
+    const planDetail: any = await planDetails(vendorId);
+    if (!planDetail) {
+      return sendApiResponse(
+        res,
+        400,
+        "Subscription not found for adding products",
+        {
+          subscriptionExists: false,
+          isActive: false,
+          productLimit: 0,
+          productCount: productCount,
+        }
+      );
+    }
+
+    if (planDetail.status !== "active") {
+      return sendApiResponse(res, 400, "Subscription is not active ", {
+        subscriptionExists: true,
+        isActive: false,
+        productLimit: planDetail.planId.productLimit,
+        productCount: productCount,
+      });
+    }
+
+    if (productCount >= planDetail.planId.productLimit) {
+      return sendApiResponse(
+        res,
+        400,
+        "Product limit reached, upgrade plan to add more products",
+        {
+          subscriptionExists: true,
+          isActive: true,
+          productLimit: planDetail.planId.productLimit,
+          productCount: productCount,
+        }
+      );
+    }
+
     // Validate the merged product data
     const { error, value } = productValidationSchema.validate(req.body);
     if (error) {
@@ -314,7 +366,7 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
         ...value, // Includes category, tags, commission, etc.
       };
 
-      if(value.lifeTime){
+      if (value.lifeTime) {
         fullProduct.endDate = null;
       }
 
@@ -395,7 +447,7 @@ const editProduct = async (req: AuthRequest, res: Response) => {
       creatorMaterial: updatedCreatorMaterial,
     };
 
-    if(value.lifeTime){
+    if (value.lifeTime) {
       updatePayload.endDate = null;
     }
 
@@ -425,8 +477,12 @@ const checkExistingBrandProductBeforeAdd = async (
   const { productId } = req.body;
   try {
     // Check for existing product
-    let existingProduct = await ProductModel.findOne({
+    const existingProduct = await ProductModel.findOne({
       channelProductId: productId,
+      vendorId: vendorId,
+    });
+
+    const productCount = await ProductModel.countDocuments({
       vendorId: vendorId,
     });
 
@@ -436,6 +492,44 @@ const checkExistingBrandProductBeforeAdd = async (
         409,
         "Product already exists in the platform",
         { product: existingProduct }
+      );
+    }
+
+    const planDetail: any = await planDetails(vendorId);
+    if (!planDetail) {
+      return sendApiResponse(
+        res,
+        400,
+        "Subscription not found for adding products",
+        {
+          subscriptionExists: false,
+          isActive: false,
+          productLimit: 0,
+          productCount: productCount,
+        }
+      );
+    }
+
+    if (planDetail.status !== "active") {
+      return sendApiResponse(res, 400, "Subscription is not active ", {
+        subscriptionExists: true,
+        isActive: false,
+        productLimit: planDetail.planId.productLimit,
+        productCount: productCount,
+      });
+    }
+
+    if (productCount >= planDetail.planId.productLimit) {
+      return sendApiResponse(
+        res,
+        400,
+        "Product limit reached, upgrade plan to add more products",
+        {
+          subscriptionExists: true,
+          isActive: true,
+          productLimit: planDetail.planId.productLimit,
+          productCount: productCount,
+        }
       );
     }
 
