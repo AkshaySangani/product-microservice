@@ -252,43 +252,43 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
       vendorId: vendorId,
     });
     //check plan details before adding product
-    const planDetail: any = await planDetails(vendorId);
-    if (!planDetail) {
-      return sendApiResponse(
-        res,
-        400,
-        "Subscription not found for adding products",
-        {
-          subscriptionExists: false,
-          isActive: false,
-          productLimit: 0,
-          productCount: productCount,
-        }
-      );
-    }
+    // const planDetail: any = await planDetails(vendorId);
+    // if (!planDetail) {
+    //   return sendApiResponse(
+    //     res,
+    //     400,
+    //     "Subscription not found for adding products",
+    //     {
+    //       subscriptionExists: false,
+    //       isActive: false,
+    //       productLimit: 0,
+    //       productCount: productCount,
+    //     }
+    //   );
+    // }
 
-    if (planDetail.status !== "active") {
-      return sendApiResponse(res, 400, "Subscription is not active ", {
-        subscriptionExists: true,
-        isActive: false,
-        productLimit: planDetail.planId.productLimit,
-        productCount: productCount,
-      });
-    }
+    // if (planDetail.status !== "active") {
+    //   return sendApiResponse(res, 400, "Subscription is not active ", {
+    //     subscriptionExists: true,
+    //     isActive: false,
+    //     productLimit: planDetail.planId.productLimit,
+    //     productCount: productCount,
+    //   });
+    // }
 
-    if (productCount >= planDetail.planId.productLimit) {
-      return sendApiResponse(
-        res,
-        400,
-        "Product limit reached, upgrade plan to add more products",
-        {
-          subscriptionExists: true,
-          isActive: true,
-          productLimit: planDetail.planId.productLimit,
-          productCount: productCount,
-        }
-      );
-    }
+    // if (productCount >= planDetail.planId.productLimit) {
+    //   return sendApiResponse(
+    //     res,
+    //     400,
+    //     "Product limit reached, upgrade plan to add more products",
+    //     {
+    //       subscriptionExists: true,
+    //       isActive: true,
+    //       productLimit: planDetail.planId.productLimit,
+    //       productCount: productCount,
+    //     }
+    //   );
+    // }
 
     // Validate the merged product data
     const { error, value } = productValidationSchema.validate(req.body);
@@ -495,43 +495,43 @@ const checkExistingBrandProductBeforeAdd = async (
       );
     }
 
-    const planDetail: any = await planDetails(vendorId);
-    if (!planDetail) {
-      return sendApiResponse(
-        res,
-        400,
-        "Subscription not found for adding products",
-        {
-          subscriptionExists: false,
-          isActive: false,
-          productLimit: 0,
-          productCount: productCount,
-        }
-      );
-    }
+    // const planDetail: any = await planDetails(vendorId);
+    // if (!planDetail) {
+    //   return sendApiResponse(
+    //     res,
+    //     400,
+    //     "Subscription not found for adding products",
+    //     {
+    //       subscriptionExists: false,
+    //       isActive: false,
+    //       productLimit: 0,
+    //       productCount: productCount,
+    //     }
+    //   );
+    // }
 
-    if (planDetail.status !== "active") {
-      return sendApiResponse(res, 400, "Subscription is not active ", {
-        subscriptionExists: true,
-        isActive: false,
-        productLimit: planDetail.planId.productLimit,
-        productCount: productCount,
-      });
-    }
+    // if (planDetail.status !== "active") {
+    //   return sendApiResponse(res, 400, "Subscription is not active ", {
+    //     subscriptionExists: true,
+    //     isActive: false,
+    //     productLimit: planDetail.planId.productLimit,
+    //     productCount: productCount,
+    //   });
+    // }
 
-    if (productCount >= planDetail.planId.productLimit) {
-      return sendApiResponse(
-        res,
-        400,
-        "Product limit reached, upgrade plan to add more products",
-        {
-          subscriptionExists: true,
-          isActive: true,
-          productLimit: planDetail.planId.productLimit,
-          productCount: productCount,
-        }
-      );
-    }
+    // if (productCount >= planDetail.planId.productLimit) {
+    //   return sendApiResponse(
+    //     res,
+    //     400,
+    //     "Product limit reached, upgrade plan to add more products",
+    //     {
+    //       subscriptionExists: true,
+    //       isActive: true,
+    //       productLimit: planDetail.planId.productLimit,
+    //       productCount: productCount,
+    //     }
+    //   );
+    // }
 
     return sendApiResponse(res, 200, "Product not found");
   } catch (error: any) {
