@@ -9,5 +9,5 @@ app.listen(PORT, () => {
 });
 
 app.get('/', (req, res) => {
-    res.send('Hello, Welcome to Auth-Microservice!');
+    res.send('Hello, Welcome to Product-Microservice!');
 });
