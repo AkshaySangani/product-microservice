@@ -124,6 +124,7 @@ const sendCollaborationRequestToVendor = async (
           path: "productId",
           populate: [{ path: "category", model: "Category" }],
         })
+        .populate('bids')
         .populate("vendorId")
         .skip((Number(page) - 1) * Number(limit))
         .limit(Number(limit))

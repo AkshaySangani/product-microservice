@@ -386,7 +386,7 @@ const requestStatusChange = async (req: AuthRequest, res: Response) => {
       const newBid = new BidModel({
         proposal: collaboration.productId.commission,
         type: collaboration.productId.commission_type,
-        sender: userRole,
+        sender: "vendor",
       });
       await newBid.save();
 
