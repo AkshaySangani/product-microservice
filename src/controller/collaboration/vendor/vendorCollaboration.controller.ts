@@ -208,7 +208,12 @@ const collaborationList = async (req: AuthRequest, res: Response) => {
   const { page = 1, limit = 20, status, search } = req.query;
 
   try {
-    const condition: any = {};
+    //escape default creator
+    const trureffCreator = await CreatorModel.findOne({
+      user_name: "truereff",
+    });
+
+    const condition: any = { creatorId: { $ne: trureffCreator?._id } };
 
     if (status) condition.collaborationStatus = status;
 
@@ -217,7 +222,9 @@ const collaborationList = async (req: AuthRequest, res: Response) => {
       const matchingProducts = await ProductModel.find({
         title: { $regex: new RegExp(search as string, "i") },
         vendorId,
-      }).select("_id").lean();
+      })
+        .select("_id")
+        .lean();
 
       const productIds = matchingProducts.map((p) => p._id);
       condition.productId = { $in: productIds };

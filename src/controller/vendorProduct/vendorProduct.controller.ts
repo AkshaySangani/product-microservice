@@ -1,18 +1,22 @@
 import { Request, Response } from "express";
 import sendApiResponse from "../../common";
 import {
+  BidModel,
   CampaignModel,
+  ChannelModel,
   CollaborationModel,
+  CreatorModel,
   ProductModel,
   VendorModel,
   VendorProductModel,
 } from "../../database/model";
 import { AuthRequest } from "../../types/authRequest";
-import { BACKEND_URL } from "../../config";
+import { BACKEND_URL, FRONTEND_URL } from "../../config";
 import mongoose from "mongoose";
 import { productValidationSchema } from "./validation/index";
 import { uploadToS3 } from "../../lib/s3";
 import { planDetails } from "../../common/planDetails";
+import { createShopifyUTMnew } from "../utm-link/utm.controller";
 
 const getVendorList = async (req: Request, res: Response) => {
   try {
@@ -247,10 +251,9 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
       );
     }
 
-
-    const productCount = await ProductModel.countDocuments({
-      vendorId: vendorId,
-    });
+    // const productCount = await ProductModel.countDocuments({
+    //   vendorId: vendorId,
+    // });
     //check plan details before adding product
     // const planDetail: any = await planDetails(vendorId);
     // if (!planDetail) {
@@ -391,7 +394,9 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
       //   productId: newProduct._id,
       //   channelName,
       // });
-
+      await generateDefaultUTMLink(req, {
+        productId: newProduct._id.toString(),
+      });
       return sendApiResponse(res, 201, "Product added successfully", {
         product: newProduct,
       });
@@ -539,6 +544,83 @@ const checkExistingBrandProductBeforeAdd = async (
     return sendApiResponse(res, 500, "Internal server error", {
       error: error.message || "Unknown error",
     });
+  }
+};
+
+const generateDefaultUTMLink = async (
+  req: AuthRequest,
+  body: { productId: string }
+) => {
+  const { _id: vendorId } = req.user;
+  const { productId } = body;
+
+  try {
+    // 1. Find the default creator by username (e.g., used for automated or platform-owned collaborations)
+    const creator = await CreatorModel.findOne({ user_name: "truereff" });
+
+    // 2. Find the vendor's active Shopify channel (assumes one per vendor for Shopify)
+    const channel = await ChannelModel.findOne({
+      vendorId: vendorId,
+      channelType: "shopify",
+    });
+
+    // 3. Fetch product data by ID
+    const product: any = await ProductModel.findOne({ _id: productId });
+
+    // 4. Create a new collaboration record
+    const collaboration = await CollaborationModel.create({
+      vendorId: vendorId,
+      creatorId: creator?._id,
+      productId: productId,
+      requestedBy: "vendor", // indicating the vendor initiated the collab
+      collaborationStatus: "ACTIVE",
+      commissionValue: product?.commission,
+      commissionType: product?.commission_type,
+      discountType: product?.discountType,
+      discountValue: product?.discount,
+      negotiation: {
+        agreedByVendor: true,
+      },
+    });
+
+    // 5. Create an initial bid for the collaboration
+    const newBid = new BidModel({
+      proposal: product?.commission,
+      type: product?.commission_type,
+      sender: "vendor",
+    });
+    await newBid.save();
+
+    // 6. Link the bid to the collaboration
+    collaboration.bids.push(newBid._id);
+    await collaboration.save();
+
+    // 7. Generate UTM tracking link for the product via external CRM/shopify service
+    const crmLinkData = await createShopifyUTMnew({
+      shopUrl: channel?.channelConfig?.domain,
+      productIdentifier: product?.channelProductId,
+      crmAffiliateId: collaboration?._id,
+      couponCode: product?.couponCode,
+      couponDiscountType: product?.discountType,
+      couponDiscountValue: product?.discount,
+    });
+
+    // 8. If the CRM service returns a valid shareable link, update the collaboration with UTM and tracking data
+    if (crmLinkData.shareableLink) {
+      collaboration.crmLink =
+        FRONTEND_URL + "/product-detail/" + collaboration._id;
+      collaboration.utmLink = crmLinkData.shareableLink;
+      collaboration.utmLinkIdentifier = crmLinkData.utmappLinkId;
+    } else {
+      console.log("Error while generating UTM link", crmLinkData);
+    }
+
+    // 9. Save the final state of the collaboration
+    collaboration.save();
+
+  } catch (e: any) {
+    // Log any errors encountered during the process
+    console.error("Error while generating default UTM link:", e);
   }
 };
 
