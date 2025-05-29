@@ -2,20 +2,17 @@ import { Request, Response } from "express";
 import sendApiResponse from "../../common";
 import {
   BidModel,
-  CampaignModel,
   ChannelModel,
   CollaborationModel,
   CreatorModel,
   ProductModel,
   VendorModel,
-  VendorProductModel,
 } from "../../database/model";
 import { AuthRequest } from "../../types/authRequest";
 import { BACKEND_URL, FRONTEND_URL } from "../../config";
 import mongoose from "mongoose";
 import { productValidationSchema } from "./validation/index";
 import { uploadToS3 } from "../../lib/s3";
-import { planDetails } from "../../common/planDetails";
 import { createShopifyUTMnew } from "../utm-link/utm.controller";
 
 const getVendorList = async (req: Request, res: Response) => {
@@ -345,6 +342,13 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
         creatorMaterial = uploadedFiles.map((upload) => upload.url);
       }
 
+      let status = "PENDING";
+      const now = new Date();
+
+      if (value.startDate && now >= new Date(value.startDate)) {
+        status = "ACTIVE";
+      }
+
       // Merge API product data and request body (which includes metadata fields)
       const fullProduct = {
         title: productData.name,
@@ -364,6 +368,7 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
           price: item.price,
           title: item.title,
         })),
+        status,
         vendorId,
         creatorMaterial, // ⬅️ this now comes from uploaded files
         ...value, // Includes category, tags, commission, etc.
@@ -456,10 +461,19 @@ const editProduct = async (req: AuthRequest, res: Response) => {
       updatePayload.endDate = null;
     }
 
+    const now = new Date();
+    let status = "PENDING";
+
+    if (value.startDate && now >= new Date(value.startDate)) {
+      status = "ACTIVE";
+    } else if (value.endDate && now > new Date(value.endDate)) {
+      status = "EXPIRED";
+    }
+
     // Update product
     const updatedProduct = await ProductModel.findByIdAndUpdate(
       productId,
-      { $set: updatePayload },
+      { $set: updatePayload, status },
       { new: true }
     );
 
@@ -617,7 +631,6 @@ const generateDefaultUTMLink = async (
 
     // 9. Save the final state of the collaboration
     collaboration.save();
-
   } catch (e: any) {
     // Log any errors encountered during the process
     console.error("Error while generating default UTM link:", e);
