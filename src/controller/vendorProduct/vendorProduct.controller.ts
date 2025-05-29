@@ -344,7 +344,7 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
 
       let status = "PENDING";
       const now = new Date();
-
+      console.log("value.startDate",value.startDate, now, value.startDate> now)
       if (value.startDate && now >= new Date(value.startDate)) {
         status = "ACTIVE";
       }
@@ -463,6 +463,7 @@ const editProduct = async (req: AuthRequest, res: Response) => {
 
     const now = new Date();
     let status = "PENDING";
+    console.log("value.startDate",value.startDate, now, value.startDate> now)
 
     if (value.startDate && now >= new Date(value.startDate)) {
       status = "ACTIVE";
