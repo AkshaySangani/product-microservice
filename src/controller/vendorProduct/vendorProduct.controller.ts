@@ -206,12 +206,46 @@ const brandProductList = async (req: AuthRequest, res: Response) => {
 
     const productList = await query;
 
+    // Fetch active collaboration counts for each product
+    const productIds = productList.map((p) => p._id);
+
+    const escapeCreator = await CreatorModel.findOne({
+      user_name: "truereff",
+    });
+
+    const collabCounts = await CollaborationModel.aggregate([
+      {
+        $match: {
+          productId: { $in: productIds },
+          collaborationStatus: "ACTIVE",
+          creatorId: { $ne: escapeCreator?._id },
+        },
+      },
+      {
+        $group: {
+          _id: "$productId",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    // Map productId => count
+    const countMap = new Map(
+      collabCounts.map((item) => [item._id.toString(), item.count])
+    );
+
+    // Attach count to each product
+    const enrichedProductList = productList.map((product) => ({
+      ...product,
+      activeCollabCount: countMap.get(product._id.toString()) || 0,
+    }));
+
     // Get total count of filtered results
     const count = await ProductModel.countDocuments(productFilter);
 
     // Send response
     return sendApiResponse(res, 200, "Product list fetched successfully", {
-      list: productList,
+      list: enrichedProductList,
       count,
     });
   } catch (error) {
@@ -344,7 +378,12 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
 
       let status = "PENDING";
       const now = new Date();
-      console.log("value.startDate",value.startDate, now, value.startDate> now)
+      console.log(
+        "value.startDate",
+        value.startDate,
+        now,
+        value.startDate > now
+      );
       if (value.startDate && now >= new Date(value.startDate)) {
         status = "ACTIVE";
       }
@@ -463,7 +502,7 @@ const editProduct = async (req: AuthRequest, res: Response) => {
 
     const now = new Date();
     let status = "PENDING";
-    console.log("value.startDate",value.startDate, now, value.startDate> now)
+    console.log("value.startDate", value.startDate, now, value.startDate > now);
 
     if (value.startDate && now >= new Date(value.startDate)) {
       status = "ACTIVE";
