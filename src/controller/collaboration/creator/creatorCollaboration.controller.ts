@@ -101,12 +101,7 @@ const collaborationList = async (req: AuthRequest, res: Response) => {
   const { _id: creatorId } = req.user;
   const { page = 1, limit = 20, status, search } = req.query;
 
-  try {
-    //escape default creator
-    const trureffCreator = await CreatorModel.findOne({
-      user_name: "truereff",
-    });
-
+  try {  
     const condition: any = {};
 
     if (status) condition.collaborationStatus = status;
@@ -132,7 +127,11 @@ const collaborationList = async (req: AuthRequest, res: Response) => {
         path: "productId",
         populate: [{ path: "category", model: "Category" }],
       })
-      .populate("bids")
+      .populate({
+        path: "bids",
+        match: { sender: "vendor" }, // Only bids from vendor
+        options: { sort: { createdAt: -1 }, limit: 1  }, // Sort descending
+      })
       .populate("vendorId")
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit))

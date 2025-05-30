@@ -239,6 +239,11 @@ const collaborationList = async (req: AuthRequest, res: Response) => {
         populate: [{ path: "category", model: "Category" }],
       })
       .populate("creatorId")
+      .populate({
+        path: "bids",
+        match: { sender: "creator" }, // Only bids from creator
+        options: { sort: { createdAt: -1 }, limit: 1  }, // Sort descending
+      })
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit))
       .sort({ createdAt: -1 });
