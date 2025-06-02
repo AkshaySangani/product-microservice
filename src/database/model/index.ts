@@ -15,6 +15,8 @@ import WishListSchema from "../../../../shared-models/src/models/wishList";
 import {biddingSchema} from "../../../../shared-models/src/models/collaboration";
 import PlanSchema from "../../../../shared-models/src/models/plan"; 
 import SubscriptionSchema from "../../../../shared-models/src/models/subscription";
+import MessagesSchema from "../../../../shared-models/src/models/messages";
+
 
 const ProductModel = mongoose.model("Product", ProductSchema);
 const CategoryModel = mongoose.model("Category", CategorySchema);
@@ -32,6 +34,7 @@ const WishListModel = mongoose.model("WishList", WishListSchema);
 const BidModel = mongoose.model("Bidding", biddingSchema);
 const PlanModel = mongoose.model("Plan", PlanSchema);
 const SubscriptionModel = mongoose.model("Subscription", SubscriptionSchema);
+const MessagesModel = mongoose.model("Messages", MessagesSchema);
 
 export {
     ProductModel,
@@ -49,5 +52,6 @@ export {
     WishListModel,
     BidModel,
     PlanModel,
-    SubscriptionModel
+    SubscriptionModel,
+    MessagesModel,
 };
