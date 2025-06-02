@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import {
   CollaborationModel,
   CreatorModel,
+  MessagesModel,
   ProductModel,
   RequestModel,
   VendorProductModel,
@@ -242,11 +243,28 @@ const collaborationList = async (req: AuthRequest, res: Response) => {
       .populate({
         path: "bids",
         match: { sender: "creator" }, // Only bids from creator
-        options: { sort: { createdAt: -1 }, limit: 1  }, // Sort descending
+        options: { sort: { createdAt: -1 }, limit: 1 }, // Sort descending
       })
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit))
       .sort({ createdAt: -1 });
+
+    // 🔁 Wait for all lastMessage queries to resolve properly
+    const collaborationListWithLastMessage = await Promise.all(
+      collaborationList.map(async (c: any) => {
+        const lastMessage = await MessagesModel.findOne({
+          collaborationId: c._id,
+          creatorId: c.creatorId,
+        })
+          .sort({ createdAt: -1 })
+          .lean();
+
+        return {
+          ...c.toObject(),
+          lastMessage: lastMessage || null,
+        };
+      })
+    );
 
     const count = await CollaborationModel.countDocuments({
       vendorId,
@@ -258,7 +276,7 @@ const collaborationList = async (req: AuthRequest, res: Response) => {
       200,
       "Collaboration list fetched successfully",
       {
-        list: collaborationList,
+        list: collaborationListWithLastMessage,
         total: count,
       }
     );
