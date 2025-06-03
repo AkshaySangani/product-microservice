@@ -241,7 +241,7 @@ const collaborationList = async (req: AuthRequest, res: Response) => {
       })
       .populate({
         path: "creatorId",
-        populate: [{ path: "category", model: "Category" }],
+        populate: [{ path: "category", model: "Category" },{path: 'channels', model: 'CreatorChannel'}],
       })
       .populate({
         path: "bids",
