@@ -359,7 +359,6 @@ const getProducts = async (req: Request, res: Response) => {
 
 const categoryForSlider = async (req: Request, res: Response) => {
   try {
-    //escape default creator
     const trureffCreator = await CreatorModel.findOne({
       user_name: "truereff",
     });
@@ -367,8 +366,8 @@ const categoryForSlider = async (req: Request, res: Response) => {
     const categories = await CollaborationModel.aggregate([
       {
         $match: {
-          // creatorId: trureffCreator?._id,
-          // collaborationStatus: "ACTIVE",
+          creatorId: trureffCreator?._id,
+          collaborationStatus: "ACTIVE",
         },
       },
       {
@@ -381,38 +380,47 @@ const categoryForSlider = async (req: Request, res: Response) => {
       },
       { $unwind: "$product" },
 
+      // Populate product.category
+      {
+        $lookup: {
+          from: "categories",
+          localField: "product.category",
+          foreignField: "_id",
+          as: "productCategory",
+        },
+      },
+      {
+        $addFields: {
+          productCategory: { $arrayElemAt: ["$productCategory", 0] },
+        },
+      },
+
+      // Match only categories that exist (avoid orphaned category references)
+      {
+        $match: {
+          "productCategory._id": { $exists: true },
+        },
+      },
+
       {
         $group: {
-          _id: "$product.category",
+          _id: "$productCategory._id",
+          category: { $first: "$productCategory" },
           productCount: { $sum: 1 },
         },
       },
       {
         $match: {
-          productCount: { $gt: 1 },
+          productCount: { $gt: 0 },
         },
       },
-      {
-        $lookup: {
-          from: "categories", // Replace if your actual collection name differs
-          localField: "_id",
-          foreignField: "_id",
-          as: "category",
-        },
-      },
-      { $unwind: "$category" },
-      // {
-      //   $match: {
-      //     "category.parentId": null,
-      //   },
-      // },
       {
         $sort: {
-          productCount: -1, // most-used categories first
+          productCount: -1,
         },
       },
       {
-        $limit: 5, // only top 5
+        $limit: 5,
       },
       {
         $replaceRoot: {
@@ -434,5 +442,6 @@ const categoryForSlider = async (req: Request, res: Response) => {
     return sendApiResponse(res, 500, "Internal server error");
   }
 };
+
 
 export { getProductList, getProductById, getProducts, categoryForSlider };
