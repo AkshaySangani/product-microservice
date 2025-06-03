@@ -239,7 +239,10 @@ const collaborationList = async (req: AuthRequest, res: Response) => {
         path: "productId",
         populate: [{ path: "category", model: "Category" }],
       })
-      .populate("creatorId")
+      .populate({
+        path: "creatorId",
+        populate: [{ path: "category", model: "Category" }],
+      })
       .populate({
         path: "bids",
         match: { sender: "creator" }, // Only bids from creator
