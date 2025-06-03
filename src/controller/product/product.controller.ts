@@ -2,7 +2,9 @@ import { Request, Response } from "express";
 import sendApiResponse from "../../common";
 import {
   CampaignModel,
+  CategoryModel,
   CollaborationModel,
+  CreatorModel,
   ProductModel,
   RequestModel,
 } from "../../database/model";
@@ -182,12 +184,12 @@ const getProductById = async (req: Request, res: Response) => {
         path: "category",
       })
       .lean();
-   
+
     if (!product) {
       return sendApiResponse(res, 404, "Product not found");
     }
     return sendApiResponse(res, 200, "Product fetched successfully", {
-      data: product ,
+      data: product,
     });
   } catch (error) {
     console.error("Error while fetching product by id", error);
@@ -268,10 +270,15 @@ const getProducts = async (req: Request, res: Response) => {
     const limitNumber = Number(limit);
     const skip = (pageNumber - 1) * limitNumber;
 
+    //escape default creator
+    const trureffCreator = await CreatorModel.findOne({
+      user_name: "truereff",
+    });
+
     const collaborations = await CollaborationModel.aggregate([
       {
         $match: {
-          creatorId: new mongoose.Types.ObjectId("683741cd91b8e03b65506e7d"),
+          creatorId: trureffCreator?._id,
           collaborationStatus: "ACTIVE",
         },
       },
@@ -309,7 +316,9 @@ const getProducts = async (req: Request, res: Response) => {
             ],
           }),
           ...(category && {
-            "product.category._id": new mongoose.Types.ObjectId(category as string),
+            "product.category._id": new mongoose.Types.ObjectId(
+              category as string
+            ),
           }),
         },
       },
@@ -324,7 +333,7 @@ const getProducts = async (req: Request, res: Response) => {
                 _id: 1,
                 crmLink: 1,
                 utmLink: 1,
-                product: 1
+                product: 1,
                 //   _id: 1,
                 //   title: 1,
                 //   tags: 1,
@@ -348,4 +357,82 @@ const getProducts = async (req: Request, res: Response) => {
   }
 };
 
-export { getProductList, getProductById, getProducts };
+const categoryForSlider = async (req: Request, res: Response) => {
+  try {
+    //escape default creator
+    const trureffCreator = await CreatorModel.findOne({
+      user_name: "truereff",
+    });
+
+    const categories = await CollaborationModel.aggregate([
+      {
+        $match: {
+          // creatorId: trureffCreator?._id,
+          // collaborationStatus: "ACTIVE",
+        },
+      },
+      {
+        $lookup: {
+          from: "products",
+          localField: "productId",
+          foreignField: "_id",
+          as: "product",
+        },
+      },
+      { $unwind: "$product" },
+
+      {
+        $group: {
+          _id: "$product.category",
+          productCount: { $sum: 1 },
+        },
+      },
+      {
+        $match: {
+          productCount: { $gt: 1 },
+        },
+      },
+      {
+        $lookup: {
+          from: "categories", // Replace if your actual collection name differs
+          localField: "_id",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
+      { $unwind: "$category" },
+      // {
+      //   $match: {
+      //     "category.parentId": null,
+      //   },
+      // },
+      {
+        $sort: {
+          productCount: -1, // most-used categories first
+        },
+      },
+      {
+        $limit: 5, // only top 5
+      },
+      {
+        $replaceRoot: {
+          newRoot: "$category",
+        },
+      },
+    ]);
+
+    return sendApiResponse(
+      res,
+      200,
+      "Category for slider fetched successfully",
+      {
+        data: categories,
+      }
+    );
+  } catch (e) {
+    console.error("Error while fetching category for slider", e);
+    return sendApiResponse(res, 500, "Internal server error");
+  }
+};
+
+export { getProductList, getProductById, getProducts, categoryForSlider };

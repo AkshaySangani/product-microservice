@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getProductById, getProductList, getProducts } from '../controller/product/product.controller';
+import { categoryForSlider, getProductById, getProductList, getProducts } from '../controller/product/product.controller';
 import { commonAuthMiddleware } from '../middleware/commonAuth.middleware';
 
 const router = Router();
@@ -7,6 +7,8 @@ const router = Router();
 router.get('/list',commonAuthMiddleware, getProductList); // get product list
 
 router.get('/all', getProducts);
+
+router.get('/category-for-slider', categoryForSlider);
 
 router.get('/:productId', getProductById); // get product by id
 
