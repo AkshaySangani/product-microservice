@@ -261,4 +261,91 @@ export const updateProductStatus = async () => {
   }
 };
 
-export { getProductList, getProductById };
+const getProducts = async (req: Request, res: Response) => {
+  try {
+    const { page = 1, limit = 10, category, search } = req.query;
+    const pageNumber = Number(page);
+    const limitNumber = Number(limit);
+    const skip = (pageNumber - 1) * limitNumber;
+
+    const collaborations = await CollaborationModel.aggregate([
+      {
+        $match: {
+          creatorId: new mongoose.Types.ObjectId("683741cd91b8e03b65506e7d"),
+          collaborationStatus: "ACTIVE",
+        },
+      },
+      {
+        $lookup: {
+          from: "products",
+          localField: "productId",
+          foreignField: "_id",
+          as: "product",
+        },
+      },
+      { $unwind: "$product" },
+
+      // Populate product.category
+      {
+        $lookup: {
+          from: "categories", // replace with actual collection name if different
+          localField: "product.category",
+          foreignField: "_id",
+          as: "product.category",
+        },
+      },
+      {
+        $addFields: {
+          "product.category": { $arrayElemAt: ["$product.category", 0] },
+        },
+      },
+
+      {
+        $match: {
+          ...(search && {
+            $or: [
+              { "product.title": { $regex: search, $options: "i" } },
+              { "product.tags": { $in: [new RegExp(search as string, "i")] } },
+            ],
+          }),
+          ...(category && {
+            "product.category._id": new mongoose.Types.ObjectId(category as string),
+          }),
+        },
+      },
+      {
+        $facet: {
+          data: [
+            { $sort: { createdAt: -1 } },
+            { $skip: skip },
+            { $limit: limitNumber },
+            {
+              $project: {
+                _id: 1,
+                crmLink: 1,
+                utmLink: 1,
+                product: 1
+                //   _id: 1,
+                //   title: 1,
+                //   tags: 1,
+                //   category: 1,
+                // },
+              },
+            },
+          ],
+          count: [{ $count: "total" }],
+        },
+      },
+    ]);
+
+    return sendApiResponse(res, 200, "Products fetched successfully", {
+      list: collaborations[0]?.data || [],
+      count: collaborations[0]?.count[0]?.total || 0,
+    });
+  } catch (error) {
+    console.error("Error while fetching products", error);
+    return sendApiResponse(res, 500, "Internal server error");
+  }
+};
+
+export { getProductList, getProductById, getProducts };
