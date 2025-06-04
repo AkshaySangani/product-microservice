@@ -23,12 +23,19 @@ const addToWishList = async (req: Request, res: Response) => {
     });
 
     await newWishlist.save();
-    return sendApiResponse(res, 200, "Product added to wishlist");
+    return sendApiResponse(res, 200, "Product added to wishlist",wishlist);
   } catch (e) {
     console.error("Error while adding to wishlist", e);
     return sendApiResponse(res, 500, "Internal server error");
   }
 };
 
+const getWishlistProducts = async (req: Request, res:  Response) => {
+  try{
+
+  }catch (e){
+
+  }
+}
 
 export { addToWishList };
