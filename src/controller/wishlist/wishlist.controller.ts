@@ -53,10 +53,20 @@ const getWishlistProducts = async (req: AuthRequest, res: Response) => {
         },
       })
       .skip(skip)
-      .limit(limit);
+      .limit(limit)
+      .lean();
 
     // Filter out null collaborations
     const filteredWishlist = wishlist.filter((entry) => entry.collaborationId);
+    const enhancedWishlist = filteredWishlist.map((entry: any) => {
+      const product = entry.collaborationId.productId;
+      delete entry.collaborationId.productId;
+      return {
+        ...entry.collaborationId,
+        product: product,
+        isWishListed: true,
+      };
+    });
 
     // Accurate count using aggregation
     const countResult = await WishListModel.aggregate([
@@ -83,7 +93,7 @@ const getWishlistProducts = async (req: AuthRequest, res: Response) => {
     const count = countResult[0]?.total || 0;
 
     return sendApiResponse(res, 200, "Wishlist products fetched successfully", {
-      list: filteredWishlist,
+      list: enhancedWishlist,
       count,
     });
   } catch (e) {
