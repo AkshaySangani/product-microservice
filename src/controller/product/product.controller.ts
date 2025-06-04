@@ -7,6 +7,7 @@ import {
   CreatorModel,
   ProductModel,
   RequestModel,
+  WishListModel,
 } from "../../database/model";
 import { VendorProductModel } from "../../database/model";
 import { CreatorProductModel } from "../../database/model";
@@ -263,7 +264,8 @@ export const updateProductStatus = async () => {
   }
 };
 
-const getProducts = async (req: Request, res: Response) => {
+const getProducts = async (req: AuthRequest, res: Response) => {
+  const accountId = req?.user?._id;
   try {
     const { page = 1, limit = 10, category, search } = req.query;
     const pageNumber = Number(page);
@@ -347,8 +349,27 @@ const getProducts = async (req: Request, res: Response) => {
       },
     ]);
 
+    const list = collaborations[0]?.data || [];
+
+    let wishlistedIds = [];
+    if (accountId) {
+      // Fetch wishlisted collaborationIds for this account
+      const wishlistEntries = await WishListModel.find({
+        accountId: accountId,
+      }).select("collaborationId");
+      wishlistedIds = wishlistEntries.map((entry: any) =>
+        entry.collaborationId.toString()
+      );
+    }
+
+    // Add isWishListed key
+    const enhancedList = list.map((collab: any) => ({
+      ...collab,
+      isWishListed: wishlistedIds.includes(collab._id.toString()),
+    }));
+
     return sendApiResponse(res, 200, "Products fetched successfully", {
-      list: collaborations[0]?.data || [],
+      list: enhancedList,
       count: collaborations[0]?.count[0]?.total || 0,
     });
   } catch (error) {
@@ -442,6 +463,5 @@ const categoryForSlider = async (req: Request, res: Response) => {
     return sendApiResponse(res, 500, "Internal server error");
   }
 };
-
 
 export { getProductList, getProductById, getProducts, categoryForSlider };
