@@ -15,6 +15,7 @@ export const authenticateMiddleware = async (
         }
 
         const decodedToken: any = jwt.verify(token, SECRET_KEY);
+        console.log("decodedToken", decodedToken);
         if (!decodedToken?._id) {
             return sendApiResponse(res, 401, "Invalid token");
         }
