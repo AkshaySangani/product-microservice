@@ -19,7 +19,7 @@ const addToWishList = async (req: Request, res: Response) => {
 
     const newWishlist = new WishListModel({
       accountId: userId,
-      productId: collaborationId,
+      collaborationId: collaborationId,
     });
 
     await newWishlist.save();
