@@ -1,9 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import sendApiResponse from "../common";
 import jwt from "jsonwebtoken";
-import { ENCRYPT_DECRYPT_KEY } from "../config";
-
-const encrypt_decrypt_key: string = ENCRYPT_DECRYPT_KEY;
+import { ENCRYPT_DECRYPT_KEY, SECRET_KEY } from "../config";
 
 export const authenticateMiddleware = async (
     req: Request,
@@ -16,7 +14,7 @@ export const authenticateMiddleware = async (
             return sendApiResponse(res, 401, "Token missing or invalid");
         }
 
-        const decodedToken: any = jwt.verify(token, encrypt_decrypt_key);
+        const decodedToken: any = jwt.verify(token, SECRET_KEY);
 
         if (decodedToken?._id) {
             // const user: any = decodedToken.type === 'admin' ? await AdminModel.findOne({ _id: decoded._id }) : await UserModel.findOne({ _id: decoded._id });
