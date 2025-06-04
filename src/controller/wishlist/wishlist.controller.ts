@@ -4,11 +4,11 @@ import { WishListModel } from "../../database/model";
 
 const addToWishList = async (req: Request, res: Response) => {
   try {
-    const { productId, userId } = req.body;
+    const { collaborationId, userId } = req.body;
 
     const wishlist = await WishListModel.findOne({
       accountId: userId,
-      productId: productId,
+      collaborationId: collaborationId,
     });
 
     if (wishlist) {
@@ -19,7 +19,7 @@ const addToWishList = async (req: Request, res: Response) => {
 
     const newWishlist = new WishListModel({
       accountId: userId,
-      productId: productId,
+      productId: collaborationId,
     });
 
     await newWishlist.save();
@@ -32,6 +32,8 @@ const addToWishList = async (req: Request, res: Response) => {
 
 const getWishlistProducts = async (req: Request, res:  Response) => {
   try{
+    // const accountId = req?.user?._id;
+
 
   }catch (e){
 
