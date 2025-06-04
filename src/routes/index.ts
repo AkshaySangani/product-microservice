@@ -8,6 +8,7 @@ import { collaborationRouter } from './collaboration/collabration';
 import { utmRouter } from './utm';
 import { campaignRouter } from './campaign';
 import { updateCollaborationCrmLink } from '../controller/collaboration/collaboration.controller';
+import { wishListRouter } from './wishList';
 
 const router = Router()
 
@@ -28,5 +29,7 @@ router.use('/utm', utmRouter)
 router.use('/campaign', campaignRouter)
 
 router.put('/generate-crm/:collaborationId',updateCollaborationCrmLink)
+
+router.use('/wishlist', wishListRouter)
 
 export { router }
