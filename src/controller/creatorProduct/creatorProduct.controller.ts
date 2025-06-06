@@ -215,7 +215,7 @@ const productAndVendorSearchResultsForCreator = async (
 };
 
 const productSearchResultsForCreator = async (req: AuthRequest, res: Response) => {
-    const { search, page = 1, limit = 20, vendorId } = req.query;
+    const { search, page = 1, limit = 20, vendorId, category } = req.query;
     const searchRegex = new RegExp(search as string, "i");
     const pageNumber = Number(page);
     const limitNumber = Number(limit);
@@ -233,6 +233,11 @@ const productSearchResultsForCreator = async (req: AuthRequest, res: Response) =
   
       if (vendorId) {
         productCondition.vendorId = vendorId;
+      }
+  
+      if (category) {
+        const categoryArray = Array.isArray(category) ? category : [category];
+        productCondition.category = { $in: categoryArray };
       }
   
       // Fetch main product list and count in parallel
