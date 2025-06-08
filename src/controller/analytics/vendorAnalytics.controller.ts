@@ -1,0 +1,140 @@
+import { Response } from "express";
+import sendApiResponse from "../../common";
+import { AuthRequest } from "../../types/authRequest";
+import mongoose from "mongoose";
+import { CollaborationModel } from "../../database/model";
+
+// Controller: Fetch analytics for vendor collaborations
+const vendorAnalytics = async (req: AuthRequest, res: Response) => {
+  try {
+    const { _id: vendorId } = req.user;
+
+    const { page = 1, limit = 20, creatorId, productId } = req.query;
+    const skip = (Number(page) - 1) * Number(limit);
+
+    // Step 1: Build base match stage for active collaborations of the vendor
+    const matchStage: any = {
+      vendorId: new mongoose.Types.ObjectId(vendorId),
+      // collaborationStatus: "ACTIVE",
+    };
+
+    // Step 2: Add optional filters if provided in query
+    if (creatorId)
+      matchStage.creatorId = new mongoose.Types.ObjectId(creatorId as string);
+    if (productId)
+      matchStage.productId = new mongoose.Types.ObjectId(productId as string);
+
+    // Step 3: Aggregate collaborations with joined orders and impressions (VISITS only)
+    const analytics = await CollaborationModel.aggregate([
+      { $match: matchStage },
+
+      // Join orders to calculate revenue, orders count and commission
+      {
+        $lookup: {
+          from: "orders",
+          localField: "_id",
+          foreignField: "collaborationId",
+          as: "orders",
+        },
+      },
+
+      {
+        $lookup: {
+          from: "impressions",
+          let: { collabId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    {
+                      $eq: [
+                        { $toString: "$collaborationId" },
+                        { $toString: "$$collabId" },
+                      ],
+                    },
+                    { $eq: ["$impression", "VISIT"] },
+                  ],
+                },
+              },
+            },
+          ],
+          as: "views",
+        },
+      },
+
+      // Compute total revenue, total orders, commission paid, and views
+      {
+        $addFields: {
+          totalRevenue: { $sum: "$orders.orderAmount" },
+          totalOrders: { $size: "$orders" },
+          totalCommissionPaid: { $sum: "$orders.commission" },
+          totalViews: { $size: "$views" },
+        },
+      },
+
+      // Join creator info
+      {
+        $lookup: {
+          from: "creators",
+          localField: "creatorId",
+          foreignField: "_id",
+          as: "creator",
+        },
+      },
+
+      // Join product info
+      {
+        $lookup: {
+          from: "products",
+          localField: "productId",
+          foreignField: "_id",
+          as: "product",
+        },
+      },
+
+      // Unwind creator and product arrays
+      { $unwind: "$creator" },
+      { $unwind: "$product" },
+
+      // Final projection of required fields for UI table
+      {
+        $project: {
+          creatorName: "$creator.user_name",
+          creatorImage: "$creator.profile_image",
+          creatorId: "$creator._id",
+          productName: "$product.title",
+          productImage: { $arrayElemAt: ["$product.media", 0] },
+          productId: "$product._id",
+          totalRevenue: 1,
+          totalOrders: 1,
+          totalCommissionPaid: 1,
+          totalViews: 1,
+        },
+      },
+
+      {
+        $facet: {
+          metadata: [{ $count: "total" }],
+          data: [
+            { $sort: { totalRevenue: -1 } },
+            { $skip: skip },
+            { $limit: Number(limit) },
+          ],
+        },
+      },
+    ]);
+
+    const totalCount = analytics[0].metadata[0]?.total || 0;
+    const list = analytics[0].data;
+    return sendApiResponse(res, 200, "Vendor analytics fetched successfully", {
+      list,
+      count: totalCount,
+    });
+  } catch (error) {
+    console.error("error while vendor analytics", error);
+    return sendApiResponse(res, 500, "Internal server error");
+  }
+};
+
+export { vendorAnalytics };
