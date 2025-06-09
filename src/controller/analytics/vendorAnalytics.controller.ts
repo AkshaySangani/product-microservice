@@ -137,4 +137,122 @@ const vendorAnalytics = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export { vendorAnalytics };
+// Controller: Fetch analytics page state for vendor collaborations
+const analyticsPageState = async (req: AuthRequest, res: Response) => {
+  try {
+    const { _id: vendorId } = req.user;
+    const { creatorId, productId } = req.query;
+
+    // Step 1: Build base match condition
+    const matchStage: any = {
+      vendorId: new mongoose.Types.ObjectId(vendorId),
+    };
+
+    // Step 2: Apply optional filters (creatorId, productId)
+    if (creatorId) {
+      matchStage.creatorId = new mongoose.Types.ObjectId(creatorId as string);
+    }
+
+    if (productId) {
+      matchStage.productId = new mongoose.Types.ObjectId(productId as string);
+    }
+
+    // Step 3: Perform aggregation to calculate metrics
+    const result = await CollaborationModel.aggregate([
+      // Match collaborations for the current vendor (with optional filters)
+      { $match: matchStage },
+
+      // Join orders collection
+      {
+        $lookup: {
+          from: "orders",
+          localField: "_id",
+          foreignField: "collaborationId",
+          as: "orders",
+        },
+      },
+
+      // Join impressions collection, filter by "VISIT"
+      {
+        $lookup: {
+          from: "impressions",
+          let: { collabId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    {
+                      $eq: [
+                        { $toString: "$collaborationId" },
+                        { $toString: "$$collabId" },
+                      ],
+                    },
+                    { $eq: ["$impression", "VISIT"] },
+                  ],
+                },
+              },
+            },
+          ],
+          as: "views",
+        },
+      },
+
+      // Step 4: Compute metrics per collaboration
+      {
+        $project: {
+          totalRevenue: { $sum: "$orders.orderAmount" },
+          totalOrders: { $size: "$orders" },
+          totalViews: { $size: "$views" },
+        },
+      },
+
+      // Step 5: Group all collaborations to get summary metrics
+      {
+        $group: {
+          _id: null,
+          totalRevenue: { $sum: "$totalRevenue" },
+          totalOrders: { $sum: "$totalOrders" },
+          totalViews: { $sum: "$totalViews" },
+          totalCollaborations: { $sum: 1 },
+        },
+      },
+
+      // Step 6: Compute conversion rate = (orders / views) * 100
+      {
+        $addFields: {
+          conversionRate: {
+            $cond: [
+              { $eq: ["$totalViews", 0] },
+              0,
+              {
+                $multiply: [{ $divide: ["$totalOrders", "$totalViews"] }, 100],
+              },
+            ],
+          },
+        },
+      },
+    ]);
+
+    // Step 7: Structure response
+    const summary = result[0] || {
+      totalRevenue: 0,
+      totalOrders: 0,
+      totalViews: 0,
+      totalCollaborations: 0,
+      conversionRate: 0,
+    };
+
+    return sendApiResponse(
+      res,
+      200,
+      "Analytics page summary fetched successfully",
+      summary
+    );
+  } catch (error) {
+    console.error("error while vendor analytics summary", error);
+    return sendApiResponse(res, 500, "Internal server error");
+  }
+};
+
+export { vendorAnalytics, analyticsPageState };
