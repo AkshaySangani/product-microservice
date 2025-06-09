@@ -203,7 +203,6 @@ export const updateProductStatus = async () => {
   const now = new Date();
 
   try {
-    // Fetch only needed fields, use lean for performance
     const products = await ProductModel.find(
       {},
       {
@@ -215,7 +214,8 @@ export const updateProductStatus = async () => {
       }
     ).lean();
 
-    const bulkOps: any[] = [];
+    const bulkProductOps: any[] = [];
+    const bulkCollabOps: any[] = [];
 
     for (const product of products) {
       const { _id, startDate, endDate, lifeTime, status } = product;
@@ -244,23 +244,49 @@ export const updateProductStatus = async () => {
       }
 
       if (newStatus !== status) {
-        bulkOps.push({
+        // Update product status
+        bulkProductOps.push({
           updateOne: {
             filter: { _id },
             update: { $set: { status: newStatus } },
           },
         });
+
+        // Also update collaborations based on new product status
+        let collaborationStatus: string | null = null;
+        if (newStatus === "EXPIRED") {
+          collaborationStatus = "EXPIRED";
+        } else if (newStatus === "ACTIVE") {
+          collaborationStatus = "SUCCESS";
+        }
+
+        if (collaborationStatus) {
+          bulkCollabOps.push({
+            updateMany: {
+              filter: {
+                productId: _id,
+                collaborationStatus: { $ne: collaborationStatus },
+              },
+              update: { $set: { collaborationStatus } },
+            },
+          });
+        }
       }
     }
 
-    if (bulkOps.length > 0) {
-      await ProductModel.bulkWrite(bulkOps);
-      console.log(`Updated ${bulkOps.length} product statuses.`);
+    if (bulkProductOps.length > 0) {
+      await ProductModel.bulkWrite(bulkProductOps);
+      console.log(`Updated ${bulkProductOps.length} product statuses.`);
     } else {
       console.log("No product statuses needed updating.");
     }
+
+    if (bulkCollabOps.length > 0) {
+      await CollaborationModel.bulkWrite(bulkCollabOps);
+      console.log(`Updated ${bulkCollabOps.length} related collaborations.`);
+    }
   } catch (error) {
-    console.error("Error while updating product statuses:", error);
+    console.error("Error while updating product and collaboration statuses:", error);
   }
 };
 

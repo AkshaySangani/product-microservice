@@ -17,7 +17,7 @@ cron.schedule(
 cron.schedule(
   "5 0 * * *",
   async () => {
-    await updateCollaborationStatus();
+    // await updateCollaborationStatus();
   },
   {
     scheduled: true,
