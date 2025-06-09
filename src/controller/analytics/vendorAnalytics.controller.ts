@@ -255,4 +255,93 @@ const analyticsPageState = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export { vendorAnalytics, analyticsPageState };
+const productAndCreatorSearchResultsForVendor = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  const { search } = req.query;
+  const searchRegex = new RegExp(search as string, "i");
+  const vendorId = req.user._id;
+
+  try {
+    const [creatorList, productList] = await Promise.all([
+      // === Creator Search from collaborations ===
+      CollaborationModel.aggregate([
+        {
+          $match: {
+            vendorId: new mongoose.Types.ObjectId(vendorId),
+            // collaborationStatus: "ACTIVE", // uncomment if needed
+          },
+        },
+        {
+          $lookup: {
+            from: "creators",
+            localField: "creatorId",
+            foreignField: "_id",
+            as: "creator",
+          },
+        },
+        { $unwind: "$creator" },
+        {
+          $match: {
+            "creator.user_name": { $regex: searchRegex },
+          },
+        },
+        {
+          $group: {
+            _id: "$creator._id",
+            name: { $first: "$creator.user_name" },
+            profile_image: { $first: "$creator.profile_image" },
+          },
+        },
+        { $limit: 5 },
+      ]),
+
+      // === Product Search from collaborations ===
+      CollaborationModel.aggregate([
+        {
+          $match: {
+            vendorId: new mongoose.Types.ObjectId(vendorId),
+            collaborationStatus: "ACTIVE",
+          },
+        },
+        {
+          $lookup: {
+            from: "products",
+            localField: "productId",
+            foreignField: "_id",
+            as: "product",
+          },
+        },
+        { $unwind: "$product" },
+        {
+          $match: {
+            "product.title": { $regex: searchRegex },
+            // "product.status": "ACTIVE",
+          },
+        },
+        {
+          $group: {
+            _id: "$product._id",
+            title: { $first: "$product.title" },
+            media: { $first: "$product.media" },
+          },
+        },
+        { $limit: 10 },
+      ]),
+    ]);
+
+    return sendApiResponse(
+      res,
+      200,
+      "Vendor-side collaboration search results fetched successfully",
+      { creatorList, productList }
+    );
+  } catch (error) {
+    console.error("Error while fetching vendor-side search results", error);
+    return sendApiResponse(res, 500, "Internal server error");
+  }
+};
+
+
+export { vendorAnalytics, analyticsPageState, productAndCreatorSearchResultsForVendor };

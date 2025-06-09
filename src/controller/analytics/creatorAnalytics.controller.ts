@@ -1,8 +1,8 @@
-import { Response } from "express";
+import { Request, Response } from "express";
 import sendApiResponse from "../../common";
 import { AuthRequest } from "../../types/authRequest";
 import mongoose from "mongoose";
-import { CollaborationModel } from "../../database/model";
+import { CollaborationModel, ProductModel, VendorModel } from "../../database/model";
 
 // Controller: Fetch analytics for creator collaborations
 const creatorAnalytics = async (req: AuthRequest, res: Response) => {
@@ -257,4 +257,112 @@ const creatorAnalyticsPageState = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export { creatorAnalytics, creatorAnalyticsPageState };
+
+const productAndVendorSearchResultsForCreator = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  const { search } = req.query;
+  const searchRegex = new RegExp(search as string, "i");
+  const creatorId = req.user._id;
+
+  try {
+    // Parallel aggregations: Vendors & Products from active collaborations
+    const [vendorList, productList] = await Promise.all([
+      // === Vendor Search from collaborations ===
+      CollaborationModel.aggregate([
+        {
+          $match: {
+            creatorId: new mongoose.Types.ObjectId(creatorId),
+            // collaborationStatus: "ACTIVE",
+          },
+        },
+        {
+          $lookup: {
+            from: "vendors",
+            localField: "vendorId",
+            foreignField: "_id",
+            as: "vendor",
+          },
+        },
+        { $unwind: "$vendor" },
+        {
+          $match: {
+            "vendor.business_name": { $regex: searchRegex },
+            "vendor.completed_step": 3,
+          },
+        },
+        {
+          $group: {
+            _id: "$vendor._id",
+            business_name: { $first: "$vendor.business_name" },
+            profile_image: { $first: "$vendor.profile_image" },
+          },
+        },
+        { $limit: 5 },
+      ]),
+
+      // === Product Search from collaborations ===
+      CollaborationModel.aggregate([
+        {
+          $match: {
+            creatorId: new mongoose.Types.ObjectId(creatorId),
+            collaborationStatus: "ACTIVE",
+          },
+        },
+        {
+          $lookup: {
+            from: "products",
+            localField: "productId",
+            foreignField: "_id",
+            as: "product",
+          },
+        },
+        { $unwind: "$product" },
+        {
+          $match: {
+            $or: [
+              { "product.title": { $regex: searchRegex } },
+              // { "product.tags": { $in: [searchRegex] } },
+            ],
+            "product.status": "ACTIVE",
+          },
+        },
+        // {
+        //   $lookup: {
+        //     from: "categories",
+        //     localField: "product.category",
+        //     foreignField: "_id",
+        //     as: "category",
+        //   },
+        // },
+        // {
+        //   $addFields: {
+        //     "product.category": { $arrayElemAt: ["$category", 0] },
+        //   },
+        // },
+        {
+          $group: {
+            _id: "$product._id",
+            title: { $first: "$product.title" },
+            media: { $first: "$product.media" },
+            // category: { $first: "$product.category" },
+          },
+        },
+        { $limit: 10 },
+      ]),
+    ]);
+
+    return sendApiResponse(
+      res,
+      200,
+      "Filtered collaboration-based search results fetched successfully",
+      { vendorList, productList }
+    );
+  } catch (error) {
+    console.error("Error while fetching optimized search results", error);
+    return sendApiResponse(res, 500, "Internal server error");
+  }
+};
+
+export { creatorAnalytics, creatorAnalyticsPageState, productAndVendorSearchResultsForCreator };
