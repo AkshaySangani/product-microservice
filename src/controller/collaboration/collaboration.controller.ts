@@ -16,6 +16,7 @@ import { sendNotification } from "../../common/sendNotification";
 import {
   createShopifyUTM,
   createShopifyUTMnew,
+  createWordpressUTM,
 } from "../utm-link/utm.controller";
 
 const collaborationRequest = async (req: AuthRequest, res: Response) => {
@@ -797,14 +798,28 @@ const activateCollaboration = async (req: AuthRequest, res: Response) => {
       channelType: collaboration.productId.channelName,
     });
 
-    const crmLinkData = await createShopifyUTMnew({
-      shopUrl: channel?.channelConfig?.domain,
-      productIdentifier: collaboration.productId.channelProductId,
-      crmAffiliateId: collaboration.id,
-      couponCode: collaboration.productId.couponCode,
-      couponDiscountType: collaboration.productId.discountType,
-      couponDiscountValue: collaboration.productId.discount,
-    });
+    let crmLinkData: any;
+    if(channel?.channelType === "shopify"){
+      crmLinkData = await createShopifyUTMnew({
+        shopUrl: channel?.channelConfig?.domain,
+        productIdentifier: collaboration.productId.channelProductId,
+        crmAffiliateId: collaboration.id,
+        couponCode: collaboration.productId.couponCode,
+        couponDiscountType: collaboration.productId.discountType,
+        couponDiscountValue: collaboration.productId.discount,
+      });
+    }else if(channel?.channelType === "wordpress"){
+      crmLinkData = await createWordpressUTM({
+        token: channel?.channelConfig?.token,
+        productIdentifier: collaboration.productId.channelProductId,
+        crmAffiliateId: collaboration?._id,
+        couponCode: collaboration.productId.couponCode,
+        couponDiscountType: collaboration.productId.discountType,
+        couponDiscountValue: collaboration.productId.discount,
+      });
+    }else{
+
+    }
 
     if (crmLinkData.shareableLink) {
       console.log("crm linkd",FRONTEND_URL)
