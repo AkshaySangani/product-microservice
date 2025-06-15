@@ -12,3 +12,4 @@ export const AWS_S3_BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME || "";
 export const FRONTEND_URL = process.env.FRONTEND_URL || "";
 export const SHOPIFY_URL = process.env.SHOPIFY_URL || "";
 export const SHOPIFY_API_KEY = process.env.SHOPIFY_API_KEY || "";
+export const WORDPRESS_URL = process.env.WORDPRESS_URL || "";

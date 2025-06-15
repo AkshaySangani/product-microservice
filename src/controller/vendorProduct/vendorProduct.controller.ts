@@ -13,7 +13,7 @@ import { BACKEND_URL, FRONTEND_URL } from "../../config";
 import mongoose from "mongoose";
 import { productValidationSchema } from "./validation/index";
 import { uploadToS3 } from "../../lib/s3";
-import { createShopifyUTMnew } from "../utm-link/utm.controller";
+import { createShopifyUTMnew, createWordpressUTM } from "../utm-link/utm.controller";
 
 const getVendorList = async (req: Request, res: Response) => {
   try {
@@ -378,12 +378,7 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
 
       let status = "PENDING";
       const now = new Date();
-      console.log(
-        "value.startDate",
-        value.startDate,
-        now,
-        value.startDate > now
-      );
+
       if (value.startDate && now >= new Date(value.startDate)) {
         status = "ACTIVE";
       }
@@ -440,6 +435,107 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
       // });
       await generateDefaultUTMLink(req, {
         productId: newProduct._id.toString(),
+        channelType: "shopify",
+      });
+      return sendApiResponse(res, 201, "Product added successfully", {
+        product: newProduct,
+      });
+    } else if (channelName === "wordpress") {
+      const response = await fetch(
+        `${BACKEND_URL}/channel/wordpress/product?productId=${productId}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: req.headers.authorization || "", // Pass authorization header
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        return sendApiResponse(
+          res,
+          response.status,
+          "Failed to fetch Shopify product",
+          { error: errorText }
+        );
+      }
+
+      const responseData = await response.json();
+      productData = responseData.data;
+
+      if (!productData) {
+        return sendApiResponse(res, 404, "No product data found");
+      }
+
+      // Handle file uploads (e.g., profile image and banner image)
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+      let creatorMaterial: any[] = [];
+
+      // Handle multiple creatorMaterial files
+      if (files?.creatorMaterial?.length) {
+        const path = `vendor/${vendorId}/products/materials`;
+
+        const uploadPromises = files.creatorMaterial.map((file) =>
+          uploadToS3(file.buffer, file.originalname, file.mimetype, path)
+        );
+
+        const uploadedFiles = await Promise.all(uploadPromises);
+        creatorMaterial = uploadedFiles.map((upload) => upload.url);
+      }
+
+      let status = "PENDING";
+      const now = new Date();
+
+      if (value.startDate && now >= new Date(value.startDate)) {
+        status = "ACTIVE";
+      }
+
+      // Merge API product data and request body (which includes metadata fields)
+      const fullProduct = {
+        title: productData.name,
+        channelProductId: productData.id,
+        price: productData.price,
+        sku: productData.slug,
+        description: productData.description || "",
+        media: productData.images,
+        channelName,
+        channelProductType: productData.type,
+        variantLabel: productData.variations?.slice(0, 1)?.map((ele: any) => {
+          const attrs = ele.attributes ?? {};
+          const keys = Object.keys(attrs);
+          return keys.join("/");
+        })?.[0],
+        variants: productData.variations?.map((ele: any) => {
+          const attrs = ele.attributes ?? {};
+
+          // Grab all keys that have a value
+          const values = Object.keys(attrs)
+            .filter((key) => attrs[key] != null)
+            .map((key) => attrs[key]);
+
+          return {
+            title: values.join("/"),
+            price: ele.price,
+            sku: ele.sku,
+          };
+        }),
+        status,
+        vendorId,
+        creatorMaterial, // ⬅️ this now comes from uploaded files
+        ...value, // Includes category, tags, commission, etc.
+      };
+
+      if (value.lifeTime) {
+        fullProduct.endDate = null;
+      }
+
+      // Save the product
+      const newProduct = await ProductModel.create(fullProduct);
+
+      await generateDefaultUTMLink(req, {
+        productId: newProduct._id.toString(),
+        channelType: "wordpress",
       });
       return sendApiResponse(res, 201, "Product added successfully", {
         product: newProduct,
@@ -603,7 +699,7 @@ const checkExistingBrandProductBeforeAdd = async (
 
 const generateDefaultUTMLink = async (
   req: AuthRequest,
-  body: { productId: string }
+  body: { productId: string; channelType: string }
 ) => {
   const { _id: vendorId } = req.user;
   const { productId } = body;
@@ -612,10 +708,10 @@ const generateDefaultUTMLink = async (
     // 1. Find the default creator by username (e.g., used for automated or platform-owned collaborations)
     const creator = await CreatorModel.findOne({ user_name: "truereff" });
 
-    // 2. Find the vendor's active Shopify channel (assumes one per vendor for Shopify)
+    // 2. Find the vendor's active channel (assumes one per vendor for)
     const channel = await ChannelModel.findOne({
       vendorId: vendorId,
-      channelType: "shopify",
+      channelType: body.channelType,
     });
 
     // 3. Fetch product data by ID
@@ -650,14 +746,27 @@ const generateDefaultUTMLink = async (
     await collaboration.save();
 
     // 7. Generate UTM tracking link for the product via external CRM/shopify service
-    const crmLinkData = await createShopifyUTMnew({
-      shopUrl: channel?.channelConfig?.domain,
-      productIdentifier: product?.channelProductId,
-      crmAffiliateId: collaboration?._id,
-      couponCode: product?.couponCode,
-      couponDiscountType: product?.discountType,
-      couponDiscountValue: product?.discount,
-    });
+    let crmLinkData: any;
+    if (channel?.channelType === "shopify") {
+      crmLinkData = await createShopifyUTMnew({
+        shopUrl: channel?.channelConfig?.domain,
+        productIdentifier: product?.channelProductId,
+        crmAffiliateId: collaboration?._id,
+        couponCode: product?.couponCode,
+        couponDiscountType: product?.discountType,
+        couponDiscountValue: product?.discount,
+      });
+    } else if (channel?.channelType === "wordpress") {
+      crmLinkData = await createWordpressUTM({
+        token: channel?.channelConfig?.token,
+        productIdentifier: product?.channelProductId,
+        crmAffiliateId: collaboration?._id,
+        couponCode: product?.couponCode,
+        couponDiscountType: product?.discountType,
+        couponDiscountValue: product?.discount,
+      });
+    } else {
+    }
 
     // 8. If the CRM service returns a valid shareable link, update the collaboration with UTM and tracking data
     if (crmLinkData.shareableLink) {
@@ -674,6 +783,7 @@ const generateDefaultUTMLink = async (
   } catch (e: any) {
     // Log any errors encountered during the process
     console.error("Error while generating default UTM link:", e);
+    return e;
   }
 };
 
