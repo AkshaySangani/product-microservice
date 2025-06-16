@@ -13,7 +13,10 @@ import { BACKEND_URL, FRONTEND_URL } from "../../config";
 import mongoose from "mongoose";
 import { productValidationSchema } from "./validation/index";
 import { uploadToS3 } from "../../lib/s3";
-import { createShopifyUTMnew, createWordpressUTM } from "../utm-link/utm.controller";
+import {
+  createShopifyUTMnew,
+  createWordpressUTM,
+} from "../utm-link/utm.controller";
 
 const getVendorList = async (req: Request, res: Response) => {
   try {
@@ -254,6 +257,7 @@ const brandProductList = async (req: AuthRequest, res: Response) => {
   }
 };
 
+// Controller: Add New Product for Shopify or WordPress
 const addNewProduct = async (req: AuthRequest, res: Response) => {
   const { _id: vendorId } = req.user;
   const { productId, channelName } = req.body;
@@ -268,10 +272,10 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
       );
     }
 
-    // Check for existing product
-    let existingProduct = await ProductModel.findOne({
+    // Check if product already exists
+    const existingProduct = await ProductModel.findOne({
       channelProductId: productId,
-      vendorId: vendorId,
+      vendorId,
     });
     if (existingProduct) {
       return sendApiResponse(
@@ -282,49 +286,7 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
       );
     }
 
-    // const productCount = await ProductModel.countDocuments({
-    //   vendorId: vendorId,
-    // });
-    //check plan details before adding product
-    // const planDetail: any = await planDetails(vendorId);
-    // if (!planDetail) {
-    //   return sendApiResponse(
-    //     res,
-    //     400,
-    //     "Subscription not found for adding products",
-    //     {
-    //       subscriptionExists: false,
-    //       isActive: false,
-    //       productLimit: 0,
-    //       productCount: productCount,
-    //     }
-    //   );
-    // }
-
-    // if (planDetail.status !== "active") {
-    //   return sendApiResponse(res, 400, "Subscription is not active ", {
-    //     subscriptionExists: true,
-    //     isActive: false,
-    //     productLimit: planDetail.planId.productLimit,
-    //     productCount: productCount,
-    //   });
-    // }
-
-    // if (productCount >= planDetail.planId.productLimit) {
-    //   return sendApiResponse(
-    //     res,
-    //     400,
-    //     "Product limit reached, upgrade plan to add more products",
-    //     {
-    //       subscriptionExists: true,
-    //       isActive: true,
-    //       productLimit: planDetail.planId.productLimit,
-    //       productCount: productCount,
-    //     }
-    //   );
-    // }
-
-    // Validate the merged product data
+    // Validate request body with schema
     const { error, value } = productValidationSchema.validate(req.body);
     if (error) {
       return sendApiResponse(res, 400, error.details[0].message);
@@ -332,14 +294,13 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
 
     let productData;
 
+    // Handle Shopify products
     if (channelName === "shopify") {
       const response = await fetch(
         `${BACKEND_URL}/channel/shopify/product?productId=${productId}`,
         {
           method: "GET",
-          headers: {
-            Authorization: req.headers.authorization || "", // Pass authorization header
-          },
+          headers: { Authorization: req.headers.authorization || "" },
         }
       );
 
@@ -353,47 +314,44 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
         );
       }
 
-      const responseData = await response.json();
-      productData = responseData.data;
-
-      if (!productData) {
+      productData = (await response.json()).data;
+      if (!productData)
         return sendApiResponse(res, 404, "No product data found");
-      }
 
-      // Handle file uploads (e.g., profile image and banner image)
+      // Upload creator material files to S3
       const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-      let creatorMaterial: any[] = [];
-
-      // Handle multiple creatorMaterial files
+      let creatorMaterial: string[] = [];
       if (files?.creatorMaterial?.length) {
         const path = `vendor/${vendorId}/products/materials`;
-
-        const uploadPromises = files.creatorMaterial.map((file) =>
-          uploadToS3(file.buffer, file.originalname, file.mimetype, path)
+        const uploadedFiles = await Promise.all(
+          files.creatorMaterial.map((file) =>
+            uploadToS3(file.buffer, file.originalname, file.mimetype, path)
+          )
         );
-
-        const uploadedFiles = await Promise.all(uploadPromises);
         creatorMaterial = uploadedFiles.map((upload) => upload.url);
       }
 
-      let status = "PENDING";
+      // Determine product status based on start date
+      let status: string = "PENDING";
       const now = new Date();
-
-      if (value.startDate && now >= new Date(value.startDate)) {
-        status = "ACTIVE";
+      
+      if (value.startDate) {
+        const startDate = new Date(value.startDate);
+      
+        if (!isNaN(startDate.getTime()) && now.getDate() >= startDate.getDate()) {
+          status = "ACTIVE";
+        }
       }
-
-      // Merge API product data and request body (which includes metadata fields)
+    
+      // Merge product data
       const fullProduct = {
+        ...value,
         title: productData.name,
         channelProductId: productData.id,
         price: productData.variants[0].price,
         sku: productData.handle,
         description: productData.description || "",
-        media:
-          productData.images?.length > 0
-            ? productData.images?.map((item: any) => item?.src)
-            : [],
+        media: productData.images?.map((item: any) => item?.src) || [],
         channelName,
         channelProductType: productData.productType,
         channelProductVendor: productData.vendor,
@@ -402,52 +360,32 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
           price: item.price,
           title: item.title,
         })),
-        status,
+        status: status,
         vendorId,
-        creatorMaterial, // ⬅️ this now comes from uploaded files
-        ...value, // Includes category, tags, commission, etc.
+        creatorMaterial,
       };
 
-      if (value.lifeTime) {
-        fullProduct.endDate = null;
-      }
+      if (value.lifeTime) fullProduct.endDate = null;
 
-      // Save the product
       const newProduct = await ProductModel.create(fullProduct);
 
-      // // Link vendor with product
-      // const existingVendorProduct = await VendorProductModel.findOne({
-      //   vendorId,
-      //   productId: newProduct._id,
-      //   channelName,
-      // });
-
-      // if (existingVendorProduct) {
-      //   return sendApiResponse(res, 409, "Vendor already added this product", {
-      //     vendorProduct: existingVendorProduct,
-      //   });
-      // }
-
-      // const newVendorProduct = await VendorProductModel.create({
-      //   vendorId,
-      //   productId: newProduct._id,
-      //   channelName,
-      // });
       await generateDefaultUTMLink(req, {
         productId: newProduct._id.toString(),
         channelType: "shopify",
       });
+
       return sendApiResponse(res, 201, "Product added successfully", {
         product: newProduct,
       });
-    } else if (channelName === "wordpress") {
+    }
+
+    // Handle WordPress products
+    else if (channelName === "wordpress") {
       const response = await fetch(
         `${BACKEND_URL}/channel/wordpress/product?productId=${productId}`,
         {
           method: "GET",
-          headers: {
-            Authorization: req.headers.authorization || "", // Pass authorization header
-          },
+          headers: { Authorization: req.headers.authorization || "" },
         }
       );
 
@@ -456,43 +394,37 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
         return sendApiResponse(
           res,
           response.status,
-          "Failed to fetch Shopify product",
+          "Failed to fetch WordPress product",
           { error: errorText }
         );
       }
 
-      const responseData = await response.json();
-      productData = responseData.data;
-
-      if (!productData) {
+      productData = (await response.json()).data;
+      if (!productData)
         return sendApiResponse(res, 404, "No product data found");
-      }
 
-      // Handle file uploads (e.g., profile image and banner image)
+      // Upload creator material files to S3
       const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-      let creatorMaterial: any[] = [];
-
-      // Handle multiple creatorMaterial files
+      let creatorMaterial: string[] = [];
       if (files?.creatorMaterial?.length) {
         const path = `vendor/${vendorId}/products/materials`;
-
-        const uploadPromises = files.creatorMaterial.map((file) =>
-          uploadToS3(file.buffer, file.originalname, file.mimetype, path)
+        const uploadedFiles = await Promise.all(
+          files.creatorMaterial.map((file) =>
+            uploadToS3(file.buffer, file.originalname, file.mimetype, path)
+          )
         );
-
-        const uploadedFiles = await Promise.all(uploadPromises);
         creatorMaterial = uploadedFiles.map((upload) => upload.url);
       }
 
+      // Determine product status based on start date
       let status = "PENDING";
       const now = new Date();
-
-      if (value.startDate && now >= new Date(value.startDate)) {
+      if (value.startDate && now >= new Date(value.startDate))
         status = "ACTIVE";
-      }
 
-      // Merge API product data and request body (which includes metadata fields)
+      // Merge product data
       const fullProduct = {
+        ...value,
         title: productData.name,
         channelProductId: productData.id,
         price: productData.price,
@@ -503,17 +435,13 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
         channelProductType: productData.type,
         variantLabel: productData.variations?.slice(0, 1)?.map((ele: any) => {
           const attrs = ele.attributes ?? {};
-          const keys = Object.keys(attrs);
-          return keys.join("/");
+          return Object.keys(attrs).join("/");
         })?.[0],
         variants: productData.variations?.map((ele: any) => {
           const attrs = ele.attributes ?? {};
-
-          // Grab all keys that have a value
           const values = Object.keys(attrs)
             .filter((key) => attrs[key] != null)
             .map((key) => attrs[key]);
-
           return {
             title: values.join("/"),
             price: ele.price,
@@ -522,25 +450,25 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
         }),
         status,
         vendorId,
-        creatorMaterial, // ⬅️ this now comes from uploaded files
-        ...value, // Includes category, tags, commission, etc.
+        creatorMaterial,
       };
 
-      if (value.lifeTime) {
-        fullProduct.endDate = null;
-      }
+      if (value.lifeTime) fullProduct.endDate = null;
 
-      // Save the product
       const newProduct = await ProductModel.create(fullProduct);
 
       await generateDefaultUTMLink(req, {
         productId: newProduct._id.toString(),
         channelType: "wordpress",
       });
+
       return sendApiResponse(res, 201, "Product added successfully", {
         product: newProduct,
       });
-    } else {
+    }
+
+    // Unsupported channel fallback
+    else {
       return sendApiResponse(res, 400, "Unsupported channel");
     }
   } catch (error: any) {
@@ -598,7 +526,6 @@ const editProduct = async (req: AuthRequest, res: Response) => {
 
     const now = new Date();
     let status = "PENDING";
-    console.log("value.startDate", value.startDate, now, value.startDate > now);
 
     if (value.startDate && now >= new Date(value.startDate)) {
       status = "ACTIVE";
