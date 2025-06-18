@@ -390,7 +390,13 @@ const requestStatusChange = async (req: AuthRequest, res: Response) => {
         sender: "vendor",
       });
       await newBid.save();
-
+      if (userRole === "creator") {
+        collaboration.negotiation.agreedByCreator = true;
+        collaboration.negotiation.agreedByVendor = false;
+      } else {
+        collaboration.negotiation.agreedByCreator = false;
+        collaboration.negotiation.agreedByVendor = true;
+      }
       collaboration.bids.push(newBid._id);
     } else if (status === "rejected") {
       collaboration.collaborationStatus = "REJECTED";
@@ -431,7 +437,7 @@ const getCollaborationStatusByProduct = async (
       const collaboration = await CollaborationModel.findOne({
         creatorId: _id,
         productId,
-      })
+      });
 
       return sendApiResponse(
         res,
@@ -799,7 +805,7 @@ const activateCollaboration = async (req: AuthRequest, res: Response) => {
     });
 
     let crmLinkData: any;
-    if(channel?.channelType === "shopify"){
+    if (channel?.channelType === "shopify") {
       crmLinkData = await createShopifyUTMnew({
         shopUrl: channel?.channelConfig?.domain,
         productIdentifier: collaboration.productId.channelProductId,
@@ -808,7 +814,7 @@ const activateCollaboration = async (req: AuthRequest, res: Response) => {
         couponDiscountType: collaboration.productId.discountType,
         couponDiscountValue: collaboration.productId.discount,
       });
-    }else if(channel?.channelType === "wordpress"){
+    } else if (channel?.channelType === "wordpress") {
       crmLinkData = await createWordpressUTM({
         token: channel?.channelConfig?.token,
         productIdentifier: collaboration.productId.channelProductId,
@@ -817,16 +823,12 @@ const activateCollaboration = async (req: AuthRequest, res: Response) => {
         couponDiscountType: collaboration.productId.discountType,
         couponDiscountValue: collaboration.productId.discount,
       });
-    }else{
-
+    } else {
     }
 
     if (crmLinkData.shareableLink) {
-      console.log("crm linkd",FRONTEND_URL)
       collaboration.crmLink =
-        FRONTEND_URL +
-        "/product-detail/" +
-        collaboration._id;
+        FRONTEND_URL + "/product-detail/" + collaboration._id;
       collaboration.utmLink = crmLinkData.shareableLink;
       collaboration.utmLinkIdentifier = crmLinkData.utmappLinkId;
     } else {
