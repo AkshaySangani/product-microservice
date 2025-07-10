@@ -10,8 +10,7 @@ import {
   RequestModel,
   BidModel,
 } from "../../database/model";
-import axios from "axios";
-import { BACKEND_URL, FRONTEND_URL } from "../../config";
+import { FRONTEND_URL } from "../../config";
 import { sendNotification } from "../../common/sendNotification";
 import {
   createShopifyUTM,

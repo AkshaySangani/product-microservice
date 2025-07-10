@@ -4,11 +4,9 @@ import {
   ChannelModel,
   CollaborationModel,
   CreatorModel,
-  VendorProductModel,
 } from "../../database/model";
 import { AuthRequest } from "../../types/authRequest";
 import {
-  BACKEND_URL,
   SHOPIFY_API_KEY,
   SHOPIFY_URL,
   WORDPRESS_URL,
