@@ -16,6 +16,8 @@ import { uploadToS3 } from "../../lib/s3";
 import {
   createShopifyUTMnew,
   createWordpressUTM,
+  shopifyCouponUpdate,
+  shopifyUpdateDiscount,
 } from "../utm-link/utm.controller";
 
 const getVendorList = async (req: Request, res: Response) => {
@@ -334,15 +336,18 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
       // Determine product status based on start date
       let status: string = "PENDING";
       const now = new Date();
-      
+
       if (value.startDate) {
         const startDate = new Date(value.startDate);
-      
-        if (!isNaN(startDate.getTime()) && now.getDate() >= startDate.getDate()) {
+
+        if (
+          !isNaN(startDate.getTime()) &&
+          now.getDate() >= startDate.getDate()
+        ) {
           status = "ACTIVE";
         }
       }
-    
+
       // Merge product data
       const fullProduct = {
         ...value,
@@ -490,7 +495,7 @@ const editProduct = async (req: AuthRequest, res: Response) => {
     }
 
     // Fetch product
-    const product = await ProductModel.findOne({ _id: productId, vendorId });
+    const product = await ProductModel.findOne({ _id: productId, vendorId })
     if (!product) {
       return sendApiResponse(res, 404, "Product not found");
     }
@@ -532,6 +537,33 @@ const editProduct = async (req: AuthRequest, res: Response) => {
     } else if (value.endDate && now > new Date(value.endDate)) {
       status = "EXPIRED";
     }
+
+    if(product.channelName === "shopify"){
+      const channel = await ChannelModel.findOne({
+        vendorId: product.vendorId,
+        channelType: product.channelName,
+      });
+
+    if (
+      value.discount !== product.discount ||
+      value.discountType !== product.discountType
+    ) {
+      await shopifyUpdateDiscount({
+        productId: productId,
+        shopUrl: channel?.channelConfig?.domain,
+        couponCode: value.couponCode,
+        couponDiscountType: value.discountType,
+        couponDiscountValue: value.discount,
+      })
+    } else if (value.couponCode !== product.couponCode) {
+      await shopifyCouponUpdate({
+        productId: productId,
+        shopUrl: channel?.channelConfig?.domain,
+        couponCode: value.couponCode,
+        couponDiscountType: value.discountType,
+        couponDiscountValue: value.discount,
+      })
+    }}
 
     // Update product
     const updatedProduct = await ProductModel.findByIdAndUpdate(

@@ -6,11 +6,7 @@ import {
   CreatorModel,
 } from "../../database/model";
 import { AuthRequest } from "../../types/authRequest";
-import {
-  SHOPIFY_API_KEY,
-  SHOPIFY_URL,
-  WORDPRESS_URL,
-} from "../../config";
+import { SHOPIFY_API_KEY, SHOPIFY_URL, WORDPRESS_URL } from "../../config";
 
 /**
  * @desc Generate UTM link for a collaboration (only if the vendor's channel is Shopify)
@@ -195,3 +191,147 @@ export const createWordpressUTM = async (data: any) => {
     throw new Error("Error generating UTM link:");
   }
 };
+
+export const shopifyCouponUpdate = async (data: any) => {
+  const {
+    productId,
+    shopUrl,
+    productIdentifier,
+    couponCode,
+    couponDiscountType,
+    couponDiscountValue,
+  } = data;
+
+  try {
+    const collaborations = await CollaborationModel.find({
+      productId: productId,
+    }).select("_id utmLinkIdentifier");
+
+    const apiKey = SHOPIFY_API_KEY;
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+    };
+
+    if (apiKey) {
+      headers["x-crm-api-key"] = apiKey;
+    }
+
+    const results: any[] = [];
+
+    for (const collaboration of collaborations) {
+      const response = await fetch(
+        `${SHOPIFY_URL}/crm/update-trackable-link-with-coupon`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            utmappLinkId: collaboration.utmLinkIdentifier,
+            shopUrl,
+            productIdentifier,
+            identifierType: "id",
+            crmAffiliateId: collaboration._id.toString(),
+            couponCode,
+            couponDiscountType,
+            couponDiscountValue,
+            isUpdateCoupon: true,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      // ✅ Update utmLink in DB if a new link is returned
+      if (result?.newShareableLink) {
+        console.log("result.newShareableLink",result.newShareableLink, collaboration.utmLinkIdentifier)
+        await CollaborationModel.updateOne(
+          { utmLinkIdentifier: collaboration.utmLinkIdentifier },
+          { $set: { utmLink: result.newShareableLink } }
+        );
+      }
+
+      results.push({
+        utmLink: collaboration.utmLinkIdentifier,
+        status: response.status,
+        response: result,
+      });
+    }
+
+    console.log("All responses:", results);
+    return results;
+  } catch (e: any) {
+    console.error("Error updating coupon code", e);
+    throw new Error("Error updating coupon code");
+  }
+};
+
+
+export const shopifyUpdateDiscount = async (data: any) => {
+  const {
+    productId,
+    shopUrl,
+    productIdentifier,
+    couponCode,
+    couponDiscountType,
+    couponDiscountValue,
+  } = data;
+
+  try {
+    const collaborations = await CollaborationModel.find({
+      productId: productId,
+    }).select("_id utmLinkIdentifier");
+
+    const apiKey = SHOPIFY_API_KEY;
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+    };
+
+    if (apiKey) {
+      headers["x-crm-api-key"] = apiKey;
+    }
+
+    const results: any[] = [];
+
+    for (const collaboration of collaborations) {
+      const response = await fetch(
+        `${SHOPIFY_URL}/crm/update-trackable-link-with-coupon`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            utmappLinkId: collaboration.utmLinkIdentifier,
+            shopUrl,
+            productIdentifier,
+            identifierType: "id",
+            crmAffiliateId: collaboration._id.toString(),
+            couponCode,
+            couponDiscountType,
+            couponDiscountValue,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      // // ✅ Update utmLink in DB if a new link is returned
+      // if (result?.newShareableLink) {
+      //   await CollaborationModel.updateOne(
+      //     { utmLinkIdentifier: collaboration.utmLinkIdentifier },
+      //     { $set: { utmLink: result.newShareableLink } }
+      //   );
+      // }
+
+      results.push({
+        utmLink: collaboration.utmLinkIdentifier,
+        status: response.status,
+        response: result,
+      });
+    }
+
+    console.log("All responses:", results);
+    return results;
+  } catch (e: any) {
+    console.error("Error updating coupon code", e);
+    throw new Error("Error updating coupon code");
+  }
+};
+
