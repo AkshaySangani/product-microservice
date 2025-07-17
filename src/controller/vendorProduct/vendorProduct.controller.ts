@@ -546,7 +546,8 @@ const editProduct = async (req: AuthRequest, res: Response) => {
 
     if (
       value.discount !== product.discount ||
-      value.discountType !== product.discountType
+      value.discountType !== product.discountType ||
+      value.couponCode !== product.couponCode
     ) {
       await shopifyUpdateDiscount({
         productId: productId,
@@ -555,7 +556,7 @@ const editProduct = async (req: AuthRequest, res: Response) => {
         couponDiscountType: value.discountType,
         couponDiscountValue: value.discount,
       })
-    } else if (value.couponCode !== product.couponCode) {
+    } else if (value.couponCode && !product.couponCode) {
       await shopifyCouponUpdate({
         productId: productId,
         shopUrl: channel?.channelConfig?.domain,

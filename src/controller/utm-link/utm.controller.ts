@@ -232,8 +232,7 @@ export const shopifyCouponUpdate = async (data: any) => {
             crmAffiliateId: collaboration._id.toString(),
             couponCode,
             couponDiscountType,
-            couponDiscountValue,
-            isUpdateCoupon: true,
+            couponDiscountValue
           }),
         }
       );
@@ -306,19 +305,20 @@ export const shopifyUpdateDiscount = async (data: any) => {
             couponCode,
             couponDiscountType,
             couponDiscountValue,
+            isUpdateCoupon: true,
           }),
         }
       );
 
       const result = await response.json();
 
-      // // ✅ Update utmLink in DB if a new link is returned
-      // if (result?.newShareableLink) {
-      //   await CollaborationModel.updateOne(
-      //     { utmLinkIdentifier: collaboration.utmLinkIdentifier },
-      //     { $set: { utmLink: result.newShareableLink } }
-      //   );
-      // }
+      // ✅ Update utmLink in DB if a new link is returned
+      if (result?.newShareableLink) {
+        await CollaborationModel.updateOne(
+          { utmLinkIdentifier: collaboration.utmLinkIdentifier },
+          { $set: { utmLink: result.newShareableLink } }
+        );
+      }
 
       results.push({
         utmLink: collaboration.utmLinkIdentifier,
