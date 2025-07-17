@@ -255,7 +255,7 @@ export const shopifyCouponUpdate = async (data: any) => {
       });
     }
 
-    console.log("All responses:", results);
+    console.log("All responses->:", results);
     return results;
   } catch (e: any) {
     console.error("Error updating coupon code", e);
