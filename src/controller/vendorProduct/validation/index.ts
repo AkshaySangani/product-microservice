@@ -32,7 +32,7 @@ export const productValidationSchema = Joi.object({
     .default("PENDING"),
 
   commission: Joi.number().required(),
-
+  blockedDays: Joi.number().required(),
   commission_type: Joi.string()
     .valid("PERCENTAGE", "FIXED_AMOUNT")
     .required(),
