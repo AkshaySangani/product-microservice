@@ -529,8 +529,10 @@ const editProduct = async (req: AuthRequest, res: Response) => {
     }
 
     // 6. Check if UTM regeneration needed
-    const hasOldCoupon = product.discount || product.discountType || product.couponCode;
-    const hasNewCoupon = value.discount || value.discountType || value.couponCode;
+    const hasOldCoupon =
+      product.discount || product.discountType || product.couponCode;
+    const hasNewCoupon =
+      value.discount || value.discountType || value.couponCode;
     const isCouponChanged =
       product.discount !== value.discount ||
       product.discountType !== value.discountType ||
@@ -544,6 +546,12 @@ const editProduct = async (req: AuthRequest, res: Response) => {
       creatorMaterial: updatedCreatorMaterial,
       status,
     };
+
+    // Remove coupon fields if not present in FE payload (i.e., removed by user)
+    if (!value.couponCode) updatePayload.couponCode = undefined;
+    if (!value.discount) updatePayload.discount = undefined;
+    if (!value.discountType) updatePayload.discountType = undefined;
+
     if (value.lifeTime) updatePayload.endDate = null;
 
     // 8. Regenerate UTM if coupon changes or removal
@@ -629,7 +637,10 @@ const editProduct = async (req: AuthRequest, res: Response) => {
     }
 
     // 9. Update product
-    await ProductModel.updateOne({ _id: productId, vendorId }, { $set: updatePayload });
+    await ProductModel.updateOne(
+      { _id: productId, vendorId },
+      { $set: updatePayload }
+    );
 
     // 10. Return updated product
     const updatedProduct = await ProductModel.findById(productId);
