@@ -348,6 +348,7 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
         }
       }
 
+      console.log("value , ",value.blockedDays)
       // Merge product data
       const fullProduct = {
         ...value,
@@ -369,10 +370,11 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
         vendorId,
         creatorMaterial,
       };
-
+console.log("payload", fullProduct)
       if (value.lifeTime) fullProduct.endDate = null;
 
       const newProduct = await ProductModel.create(fullProduct);
+      console.log("payloadnewProduct", newProduct)
 
       await generateDefaultUTMLink(req, {
         productId: newProduct._id.toString(),
