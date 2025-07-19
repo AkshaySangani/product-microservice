@@ -489,24 +489,24 @@ const editProduct = async (req: AuthRequest, res: Response) => {
   const { productId } = req.body;
 
   try {
-    // Basic validation
+    // 1. Validate product ID
     if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
       return sendApiResponse(res, 400, "Valid productId is required");
     }
 
-    // Fetch product
-    const product = await ProductModel.findOne({ _id: productId, vendorId })
+    // 2. Fetch product
+    const product = await ProductModel.findOne({ _id: productId, vendorId });
     if (!product) {
       return sendApiResponse(res, 404, "Product not found");
     }
 
-    // Validate input
+    // 3. Validate input body
     const { error, value } = productValidationSchema.validate(req.body);
     if (error) {
       return sendApiResponse(res, 400, error.details[0].message);
     }
 
-    // Handle file updates
+    // 4. File uploads
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
     let updatedCreatorMaterial = product.creatorMaterial || [];
 
@@ -519,65 +519,125 @@ const editProduct = async (req: AuthRequest, res: Response) => {
       updatedCreatorMaterial = uploadedFiles.map((file) => file.url);
     }
 
-    // Build update object
-    const updatePayload: Partial<typeof product> = {
-      ...value,
-      creatorMaterial: updatedCreatorMaterial,
-    };
-
-    if (value.lifeTime) {
-      updatePayload.endDate = null;
-    }
-
+    // 5. Determine status
     const now = new Date();
     let status = "PENDING";
-
     if (value.startDate && now >= new Date(value.startDate)) {
       status = "ACTIVE";
     } else if (value.endDate && now > new Date(value.endDate)) {
       status = "EXPIRED";
     }
 
-    if(product.channelName === "shopify"){
+    // 6. Check if UTM regeneration needed
+    const hasOldCoupon = product.discount || product.discountType || product.couponCode;
+    const hasNewCoupon = value.discount || value.discountType || value.couponCode;
+    const isCouponChanged =
+      product.discount !== value.discount ||
+      product.discountType !== value.discountType ||
+      product.couponCode !== value.couponCode;
+    const isCouponRemoved = hasOldCoupon && !hasNewCoupon;
+    const shouldUpdateUTM = isCouponChanged || isCouponRemoved;
+
+    // 7. Prepare update payload
+    const updatePayload: Partial<typeof product> = {
+      ...value,
+      creatorMaterial: updatedCreatorMaterial,
+      status,
+    };
+    if (value.lifeTime) updatePayload.endDate = null;
+
+    // 8. Regenerate UTM if coupon changes or removal
+    if (shouldUpdateUTM) {
       const channel = await ChannelModel.findOne({
         vendorId: product.vendorId,
         channelType: product.channelName,
       });
 
-    if (
-      value.discount !== product.discount ||
-      value.discountType !== product.discountType ||
-      value.couponCode !== product.couponCode
-    ) {
-      await shopifyUpdateDiscount({
-        productId: productId,
-        shopUrl: channel?.channelConfig?.domain,
-        couponCode: value.couponCode,
-        couponDiscountType: value.discountType,
-        couponDiscountValue: value.discount,
-      })
-    } else if (value.couponCode && !product.couponCode) {
-      await shopifyCouponUpdate({
-        productId: productId,
-        shopUrl: channel?.channelConfig?.domain,
-        couponCode: value.couponCode,
-        couponDiscountType: value.discountType,
-        couponDiscountValue: value.discount,
-      })
-    }}
+      if (!channel) {
+        return sendApiResponse(res, 400, "Channel not found");
+      }
 
-    // Update product
-    const updatedProduct = await ProductModel.findByIdAndUpdate(
-      productId,
-      { $set: updatePayload, status },
-      { new: true }
-    );
+      const collaborations = await CollaborationModel.find({
+        productId: productId,
+        vendorId: product.vendorId,
+      });
+      console.log("collaborations", collaborations.length);
+      const results: any[] = [];
 
+      if (product.channelName === "shopify") {
+        for (const collaboration of collaborations) {
+          try {
+            const crmLinkData = await createShopifyUTMnew({
+              shopUrl: channel?.channelConfig?.domain,
+              productIdentifier: product.channelProductId,
+              crmAffiliateId: collaboration._id,
+              couponCode: value?.couponCode,
+              couponDiscountType: value?.discountType,
+              couponDiscountValue: value?.discount,
+            });
+
+            results.push({
+              collaborationId: collaboration._id,
+              crmLinkData,
+            });
+          } catch (err) {
+            console.error("Error generating Shopify UTM link:", err);
+          }
+        }
+      } else if (product.channelName === "wordpress") {
+        for (const collaboration of collaborations) {
+          try {
+            const crmLinkData = await createWordpressUTM({
+              token: channel?.channelConfig?.token,
+              productIdentifier: product.channelProductId,
+              crmAffiliateId: collaboration?._id,
+              couponCode: value?.couponCode,
+              couponDiscountType: value?.discountType,
+              couponDiscountValue: value?.discount,
+            });
+
+            results.push({
+              collaborationId: collaboration._id,
+              crmLinkData,
+            });
+          } catch (err) {
+            console.error("Error generating WordPress UTM link:", err);
+          }
+        }
+      }
+
+      // ✅ Apply UTM updates
+      for (const result of results) {
+        if (result.crmLinkData) {
+          await CollaborationModel.updateOne(
+            { _id: result.collaborationId },
+            {
+              $set: {
+                crmLink: `${FRONTEND_URL}/product-detail/${result.collaborationId}`,
+                utmLink: result.crmLinkData.shareableLink,
+                utmLinkIdentifier: result.crmLinkData.utmappLinkId,
+                discountValue: value?.discount,
+                discountType: value?.discountType,
+                couponCode: value?.couponCode,
+              },
+            }
+          );
+        }
+      }
+
+      console.log("UTM link regenerated due to coupon change/removal.");
+    }
+
+    // 9. Update product
+    await ProductModel.updateOne({ _id: productId, vendorId }, { $set: updatePayload });
+
+    // 10. Return updated product
+    const updatedProduct = await ProductModel.findById(productId);
     return sendApiResponse(res, 200, "Product updated successfully", {
       product: updatedProduct,
     });
   } catch (error: any) {
-    console.error("Error updating product:", error);
+    console.error("Error while editing product:", error);
     return sendApiResponse(res, 500, "Internal server error", {
       error: error.message || "Unknown error",
     });
