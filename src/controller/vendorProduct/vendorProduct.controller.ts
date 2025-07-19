@@ -352,6 +352,7 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
       // Merge product data
       const fullProduct = {
         ...value,
+        blockedDays: value.blockedDays,
         title: productData.name,
         channelProductId: productData.id,
         price: productData.variants[0].price,
@@ -545,6 +546,7 @@ const editProduct = async (req: AuthRequest, res: Response) => {
     // 7. Prepare update payload
     const updatePayload: Partial<typeof product> = {
       ...value,
+      blockedDays: value.blockedDays,
       creatorMaterial: updatedCreatorMaterial,
       status,
     };
