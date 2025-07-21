@@ -341,7 +341,7 @@ const getProducts = async (req: AuthRequest, res: Response) => {
       // Populate product.subCategory
       {
         $lookup: {
-          from: "categories",
+          from: "subcategories",
           localField: "product.subCategory",
           foreignField: "_id",
           as: "product.subCategory",
@@ -362,16 +362,18 @@ const getProducts = async (req: AuthRequest, res: Response) => {
               { "product.tags": { $in: [new RegExp(search as string, "i")] } },
             ],
           }),
-          ...(category && {
-            "product.category._id": new mongoose.Types.ObjectId(
-              category as string
-            ),
-          }),
-          ...(subCategory && {
-            "product.subCategory._id": new mongoose.Types.ObjectId(
-              subCategory as string
-            ),
-          }),
+          ...(category && subCategory
+            ? {
+                $and: [
+                  { "product.category._id": new mongoose.Types.ObjectId(category as string) },
+                  { "product.subCategory._id": new mongoose.Types.ObjectId(subCategory as string) },
+                ],
+              }
+            : category
+            ? { "product.category._id": new mongoose.Types.ObjectId(category as string) }
+            : subCategory
+            ? { "product.subCategory._id": new mongoose.Types.ObjectId(subCategory as string) }
+            : {}),
         },
       },
 
