@@ -286,19 +286,22 @@ export const updateProductStatus = async () => {
       console.log(`Updated ${bulkCollabOps.length} related collaborations.`);
     }
   } catch (error) {
-    console.error("Error while updating product and collaboration statuses:", error);
+    console.error(
+      "Error while updating product and collaboration statuses:",
+      error
+    );
   }
 };
 
 const getProducts = async (req: AuthRequest, res: Response) => {
   const accountId = req?.user?._id;
   try {
-    const { page = 1, limit = 10, category, search } = req.query;
+    const { page = 1, limit = 10, category, subCategory, search } = req.query;
     const pageNumber = Number(page);
     const limitNumber = Number(limit);
     const skip = (pageNumber - 1) * limitNumber;
 
-    //escape default creator
+    // escape default creator
     const trureffCreator = await CreatorModel.findOne({
       user_name: "truereff",
     });
@@ -323,7 +326,7 @@ const getProducts = async (req: AuthRequest, res: Response) => {
       // Populate product.category
       {
         $lookup: {
-          from: "categories", // replace with actual collection name if different
+          from: "categories",
           localField: "product.category",
           foreignField: "_id",
           as: "product.category",
@@ -335,6 +338,22 @@ const getProducts = async (req: AuthRequest, res: Response) => {
         },
       },
 
+      // Populate product.subCategory
+      {
+        $lookup: {
+          from: "categories",
+          localField: "product.subCategory",
+          foreignField: "_id",
+          as: "product.subCategory",
+        },
+      },
+      {
+        $addFields: {
+          "product.subCategory": { $arrayElemAt: ["$product.subCategory", 0] },
+        },
+      },
+
+      // Match filters
       {
         $match: {
           ...(search && {
@@ -348,8 +367,14 @@ const getProducts = async (req: AuthRequest, res: Response) => {
               category as string
             ),
           }),
+          ...(subCategory && {
+            "product.subCategory._id": new mongoose.Types.ObjectId(
+              subCategory as string
+            ),
+          }),
         },
       },
+
       {
         $facet: {
           data: [
@@ -362,11 +387,6 @@ const getProducts = async (req: AuthRequest, res: Response) => {
                 crmLink: 1,
                 utmLink: 1,
                 product: 1,
-                //   _id: 1,
-                //   title: 1,
-                //   tags: 1,
-                //   category: 1,
-                // },
               },
             },
           ],
@@ -379,7 +399,6 @@ const getProducts = async (req: AuthRequest, res: Response) => {
 
     let wishlistedIds = [];
     if (accountId) {
-      // Fetch wishlisted collaborationIds for this account
       const wishlistEntries = await WishListModel.find({
         accountId: accountId,
       }).select("collaborationId");
@@ -388,7 +407,6 @@ const getProducts = async (req: AuthRequest, res: Response) => {
       );
     }
 
-    // Add isWishListed key
     const enhancedList = list.map((collab: any) => ({
       ...collab,
       isWishListed: wishlistedIds.includes(collab._id.toString()),
