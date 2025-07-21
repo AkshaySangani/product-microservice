@@ -40,7 +40,7 @@ export const getMappingList = async (req: Request, res: Response) => {
         const skip = (Number(page) - 1) * Number(limit);
         const limitNumber = Number(limit);
         
-        const categoryMapping = await CategoryMappingModel.find({}).skip(skip).limit(limitNumber);
+        const categoryMapping = await CategoryMappingModel.find({}).populate("creatorCategory").populate("vendorCategory").skip(skip).limit(limitNumber);
         const count = await CategoryMappingModel.countDocuments({});
 
         return sendApiResponse(res, 200, "Category mapping list fetched successfully", {
@@ -49,6 +49,21 @@ export const getMappingList = async (req: Request, res: Response) => {
         });
     } catch (error) {
         console.error("error while getting category mapping list", error);
+        return sendApiResponse(res, 500, "Internal server error");
+    }
+}
+
+export const deleteMapping = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        if(!id) return sendApiResponse(res, 400, "Category mapping id is required");
+
+        const categoryMapping = await CategoryMappingModel.findByIdAndDelete(id);
+        if(!categoryMapping) return sendApiResponse(res, 400, "Category mapping not found");
+
+        return sendApiResponse(res, 200, "Category mapping deleted successfully", categoryMapping);
+    } catch (error) {
+        console.error("error while deleting category mapping", error);
         return sendApiResponse(res, 500, "Internal server error");
     }
 }
