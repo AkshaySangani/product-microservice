@@ -1,6 +1,7 @@
 import { Response } from "express";
 import sendApiResponse from "../../../common";
 import {
+  CategoryMappingModel,
   CollaborationModel,
   CreatorModel,
   MessagesModel,
@@ -126,7 +127,7 @@ const collaborationList = async (req: AuthRequest, res: Response) => {
     })
       .populate({
         path: "productId",
-        populate: [{ path: "category", model: "Category" }],
+        // populate: [{ path: "category", model: "Category" }],
       })
       .populate({
         path: "bids",
@@ -148,8 +149,28 @@ const collaborationList = async (req: AuthRequest, res: Response) => {
           .sort({ createdAt: -1 })
           .lean();
 
+        let product = c.productId?.toObject?.() || {};
+        const vendorCategoryId = product?.category;
+
+        // Map vendor category to creator category
+        let creatorCategory = null;
+        if (vendorCategoryId) {
+          const mapping = await CategoryMappingModel.findOne({
+            vendorCategory: vendorCategoryId,
+          })
+            .populate("creatorCategory")
+            .lean();
+
+          creatorCategory = mapping?.creatorCategory || null;
+
+          if (creatorCategory) {
+            product.category = [creatorCategory]; // ✅ Replace vendor category with creator category in response
+          }
+        }
+
         return {
           ...c.toObject(),
+          productId: product,
           lastMessage: lastMessage || null,
         };
       })
