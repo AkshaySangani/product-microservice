@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import sendApiResponse from "../../common";
-import { CategoryModel } from "../../database/model";
+import { CategoryMappingModel, CategoryModel } from "../../database/model";
 
 const addCategory = async (req: Request, res: Response) => {
     try {
@@ -61,6 +61,9 @@ const deleteCategory = async (req: Request, res: Response) => {
         const { categoryId } = req.params;
         const isExists = await CategoryModel.findById(categoryId);
         if (!isExists) return sendApiResponse(res, 400, "Category not found");
+
+        const isMappingExists = await CategoryMappingModel.findOne({ $or: [{ creatorCategory: categoryId }, { vendorCategory: categoryId }] });
+        if(isMappingExists) return sendApiResponse(res, 400, "Category is mapped to vendor");
         
         await CategoryModel.findByIdAndDelete(categoryId);
         return sendApiResponse(res, 200, "Category deleted successfully");
