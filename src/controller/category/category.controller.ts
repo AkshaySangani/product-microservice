@@ -38,7 +38,7 @@ const getCategoryList = async (req: Request, res: Response) => {
             const limitNumber = Number(limit);
             const skip = (pageNumber - 1) * limitNumber;
 
-            list = await CategoryModel.find(condition).skip(skip).limit(limitNumber);
+            list = await CategoryModel.find(condition).populate("parentId").skip(skip).limit(limitNumber);
             count = await CategoryModel.countDocuments(condition);
         } else {
             // If no pagination, fetch all categories matching condition
