@@ -4,13 +4,15 @@ import { CategoryModel } from "../../database/model";
 
 const addCategory = async (req: Request, res: Response) => {
     try {
-        const { name, parentId } = req.body;
+        const { name, parentId, type } = req.body;
         if (!name) return sendApiResponse(res, 400, "Name is required");
 
-        const isExists = await CategoryModel.findOne({ name, parentId });
+        if(type !== "creator" && type !== "vendor") return sendApiResponse(res, 400, "Invalid type");
+        
+        const isExists = await CategoryModel.findOne({ name, parentId, type });
         if (isExists) return sendApiResponse(res, 400, "Category already exists");
 
-        const category = await CategoryModel.create({ name, parentId });
+        const category = await CategoryModel.create({ name, parentId, type });
         return sendApiResponse(res, 201, "Category added successfully", category);
     } catch (error) {
         console.error("error while add category", error);
@@ -20,12 +22,13 @@ const addCategory = async (req: Request, res: Response) => {
 
 const getCategoryList = async (req: Request, res: Response) => {
     try {
-        const { page, limit, parentId, all } = req.query;
+        const { page, limit, parentId, all, type } = req.query;
 
         // Initialize query condition based on parentId
         let condition = {};
         if (parentId) condition = { parentId };
         if (!parentId && all === 'false') condition = { parentId: null };
+        if(type) condition = { type };
 
         let list, count;
 
@@ -39,7 +42,7 @@ const getCategoryList = async (req: Request, res: Response) => {
             count = await CategoryModel.countDocuments(condition);
         } else {
             // If no pagination, fetch all categories matching condition
-            list = await CategoryModel.find(condition);
+            list = await CategoryModel.find(condition).populate("parentId");
             count = list.length;
         }
 

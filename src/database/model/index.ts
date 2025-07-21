@@ -17,6 +17,7 @@ import PlanSchema from "../../../../shared-models/src/models/plan";
 import SubscriptionSchema from "../../../../shared-models/src/models/subscription";
 import MessagesSchema from "../../../../shared-models/src/models/messages";
 import CreatorChannelSchema from "../../../../shared-models/src/models/creatorChannel";
+import CategoryMappingSchema from "../../../../shared-models/src/models/categoryMapping";
 
 const ProductModel = mongoose.model("Product", ProductSchema);
 const CategoryModel = mongoose.model("Category", CategorySchema);
@@ -36,6 +37,7 @@ const PlanModel = mongoose.model("Plan", PlanSchema);
 const SubscriptionModel = mongoose.model("Subscription", SubscriptionSchema);
 const MessagesModel = mongoose.model("Messages", MessagesSchema);
 const CreatorChannelModel = mongoose.model("CreatorChannel", CreatorChannelSchema);
+const CategoryMappingModel = mongoose.model("CategoryMapping", CategoryMappingSchema);
 
 export {
     ProductModel,
@@ -55,5 +57,6 @@ export {
     PlanModel,
     SubscriptionModel,
     MessagesModel,
-    CreatorChannelModel
+    CreatorChannelModel,
+    CategoryMappingModel
 };
