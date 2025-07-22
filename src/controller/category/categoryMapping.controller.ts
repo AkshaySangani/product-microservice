@@ -40,7 +40,7 @@ export const getMappingList = async (req: Request, res: Response) => {
         const skip = (Number(page) - 1) * Number(limit);
         const limitNumber = Number(limit);
         
-        const categoryMapping = await CategoryMappingModel.find({}).populate("creatorCategory").populate("vendorCategory").skip(skip).limit(limitNumber);
+        const categoryMapping = await CategoryMappingModel.find({}).populate("creatorCategory").populate("vendorCategory").skip(skip).limit(limitNumber).sort({ createdAt: -1 });
         const count = await CategoryMappingModel.countDocuments({});
 
         return sendApiResponse(res, 200, "Category mapping list fetched successfully", {
