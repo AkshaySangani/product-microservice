@@ -127,7 +127,7 @@ const collaborationList = async (req: AuthRequest, res: Response) => {
     })
       .populate({
         path: "productId",
-        // populate: [{ path: "category", model: "Category" }],
+        populate: [{ path: "category", model: "Category" }],
       })
       .populate({
         path: "bids",
@@ -149,30 +149,46 @@ const collaborationList = async (req: AuthRequest, res: Response) => {
           .sort({ createdAt: -1 })
           .lean();
 
-        let product = c.productId?.toObject?.() || {};
-        const vendorCategoryId = product?.category;
+        // let product = c.productId?.toObject?.() || {};
+        // const vendorCategoryId = product?.category;
 
-        // Map vendor category to creator category
-        let creatorCategory = null;
-        if (vendorCategoryId) {
-          const mapping = await CategoryMappingModel.findOne({
-            vendorCategory: vendorCategoryId,
+        // // Map vendor category to creator category
+        // let creatorCategory = null;
+        // if (vendorCategoryId) {
+        //   const mapping = await CategoryMappingModel.findOne({
+        //     vendorCategory: vendorCategoryId,
+        //   })
+        //     .populate("creatorCategory")
+        //     .lean();
+
+        //   creatorCategory = mapping?.creatorCategory || null;
+
+        //   if (creatorCategory) {
+        //     product.category = [creatorCategory]; // ✅ Replace vendor category with creator category in response
+        //   }
+        // }
+
+        // return {
+        //   ...c.toObject(),
+        //   productId: product,
+        //   lastMessage: lastMessage || null,
+        // };
+        // 🔁 Wait for all lastMessage queries to resolve properly
+        const collaborationListWithLastMessage = await Promise.all(
+          collaborationList.map(async (c: any) => {
+            const lastMessage = await MessagesModel.findOne({
+              collaborationId: c._id,
+              vendorId: c.vendorId,
+            })
+              .sort({ createdAt: -1 })
+              .lean();
+
+            return {
+              ...c.toObject(),
+              lastMessage: lastMessage || null,
+            };
           })
-            .populate("creatorCategory")
-            .lean();
-
-          creatorCategory = mapping?.creatorCategory || null;
-
-          if (creatorCategory) {
-            product.category = [creatorCategory]; // ✅ Replace vendor category with creator category in response
-          }
-        }
-
-        return {
-          ...c.toObject(),
-          productId: product,
-          lastMessage: lastMessage || null,
-        };
+        );
       })
     );
 
