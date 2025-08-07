@@ -10,7 +10,7 @@ const objectId = Joi.string().custom((value, helpers) => {
 
 export const productValidationSchema = Joi.object({
   category: Joi.array().items(objectId).required(),
-  subCategory: Joi.array().items(objectId).required(),
+  subCategory: Joi.array().items(objectId).optional(),
 
   tags: Joi.array().items(Joi.string()).default([]),
 
