@@ -551,7 +551,7 @@ const editProduct = async (req: AuthRequest, res: Response) => {
       blockedDays: Number(value.blockedDays),
       creatorMaterial: updatedCreatorMaterial,
       status,
-      subCategory: value.subCategory
+      subCategory: value.subCategory ?? []
     };
     console.log("paylod",updatePayload)
 
