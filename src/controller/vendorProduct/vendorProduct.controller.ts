@@ -550,6 +550,7 @@ const editProduct = async (req: AuthRequest, res: Response) => {
       blockedDays: Number(value.blockedDays),
       creatorMaterial: updatedCreatorMaterial,
       status,
+      subCategory: value.subCategory
     };
 
     // Remove coupon fields if not present in FE payload (i.e., removed by user)
