@@ -544,7 +544,6 @@ const editProduct = async (req: AuthRequest, res: Response) => {
     const isCouponRemoved = hasOldCoupon && !hasNewCoupon;
     const shouldUpdateUTM = isCouponChanged || isCouponRemoved;
 
-    console.log("subbb",value.subCategory)
     // 7. Prepare update payload
     const updatePayload: Partial<typeof product> = {
       ...value,
@@ -553,7 +552,6 @@ const editProduct = async (req: AuthRequest, res: Response) => {
       status,
       subCategory: value.subCategory ?? []
     };
-    console.log("paylod",updatePayload)
 
     // Remove coupon fields if not present in FE payload (i.e., removed by user)
     if (!value.couponCode) updatePayload.couponCode = undefined;
