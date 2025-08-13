@@ -544,6 +544,7 @@ const editProduct = async (req: AuthRequest, res: Response) => {
     const isCouponRemoved = hasOldCoupon && !hasNewCoupon;
     const shouldUpdateUTM = isCouponChanged || isCouponRemoved;
 
+    console.log("subbb",value.subCategory)
     // 7. Prepare update payload
     const updatePayload: Partial<typeof product> = {
       ...value,
