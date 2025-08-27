@@ -198,8 +198,11 @@ const brandProductList = async (req: AuthRequest, res: Response) => {
         const objectIds = categoryArray.map(
           (id) => new mongoose.Types.ObjectId(id)
         );
-        productFilter.category = { $in: objectIds };
-        productFilter.subCategory = { $in: objectIds };
+        // ✅ Match either category OR subCategory
+        productFilter.$or = [
+          { category: { $in: objectIds } },
+          { subCategory: { $in: objectIds } },
+        ];
       }
     }
 
@@ -348,7 +351,7 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
         }
       }
 
-      console.log("value , ",value.blockedDays)
+      console.log("value , ", value.blockedDays);
       // Merge product data
       const fullProduct = {
         ...value,
@@ -371,11 +374,11 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
         vendorId,
         creatorMaterial,
       };
-console.log("payload", fullProduct)
+      // console.log("payload", fullProduct)
       if (value.lifeTime) fullProduct.endDate = null;
 
       const newProduct = await ProductModel.create(fullProduct);
-      console.log("payloadnewProduct", newProduct)
+      // console.log("payloadnewProduct", newProduct)
 
       await generateDefaultUTMLink(req, {
         productId: newProduct._id.toString(),
@@ -550,7 +553,7 @@ const editProduct = async (req: AuthRequest, res: Response) => {
       blockedDays: Number(value.blockedDays),
       creatorMaterial: updatedCreatorMaterial,
       status,
-      subCategory: value.subCategory ?? []
+      subCategory: value.subCategory ?? [],
     };
 
     // Remove coupon fields if not present in FE payload (i.e., removed by user)
