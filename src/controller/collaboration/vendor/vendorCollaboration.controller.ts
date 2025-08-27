@@ -147,7 +147,7 @@ const sendCollaborationRequestToCreator = async (
           // 4f. Send notification to creator
           sendNotification(
               req,
-              [vendorId],
+              [creatorId],
               `New collaboration request from ${vendor.business_name} for product ${vendorProduct?.title}`,
               'vendor',
               'collaboration'
