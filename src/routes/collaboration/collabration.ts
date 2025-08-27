@@ -17,6 +17,8 @@ router.use('/vendor', vendorCollaborationRouter);
 
 router.use('/creator', creatorCollaborationRouter);
 
-router.use('/activate/:collaborationId', commonAuthMiddleware, collaborationController.activateCollaboration)
+router.post('/activate/:collaborationId', commonAuthMiddleware, collaborationController.activateCollaboration)
+
+router.put('/deactivate/:collaborationId', commonAuthMiddleware, collaborationController.deactivateCollaboration)
 
 export { router as collaborationRouter };

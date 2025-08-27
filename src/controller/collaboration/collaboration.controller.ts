@@ -50,11 +50,11 @@ const requestStatusChange = async (req: AuthRequest, res: Response) => {
       });
       await newBid.save();
       if (userRole === "creator") {
-        collaboration.negotiation.agreedByCreator = true;
-        collaboration.negotiation.agreedByVendor = false;
+        // collaboration.negotiation.agreedByCreator = true;
+        // collaboration.negotiation.agreedByVendor = false;
       } else {
-        collaboration.negotiation.agreedByCreator = false;
-        collaboration.negotiation.agreedByVendor = true;
+        // collaboration.negotiation.agreedByCreator = false;
+        // collaboration.negotiation.agreedByVendor = true;
       }
       collaboration.bids.push(newBid._id);
     } else if (status === "rejected") {
@@ -221,7 +221,7 @@ export const updateCollaborationDetails = async (
       );
     }
 
-    const product = await ProductModel.findById(collaboration?.productId)
+    // const product = await ProductModel.findById(collaboration?.productId);
 
     let isProposalUpdated = false;
 
@@ -309,13 +309,6 @@ export const updateCollaborationDetails = async (
 
     await collaboration.save();
 
-    sendNotification(
-      req,
-      [userRole === 'creator' ? collaboration.vendorId : collaboration.creatorId],
-      `New bid for product ${product?.title} from ${userRole === 'creator'? 'vendor':'creator'}`,
-      userRole === 'creator'? 'vendor':'creator',
-      'collaboration'
-    );
 
     return res.status(200).json({
       message: "Collaboration details updated successfully.",
@@ -487,9 +480,48 @@ const activateCollaboration = async (req: AuthRequest, res: Response) => {
   }
 };
 
+const deactivateCollaboration = async (req: AuthRequest, res: Response) => {
+  try {
+    const { collaborationId } = req.params;
+    const userRole = req.userRole;
+
+    // Validate collaborationId
+    if (!collaborationId) {
+      return sendApiResponse(res, 400, "Missing collaboration ID.");
+    }
+
+    // Check if the collaboration exists
+    const collaboration = await CollaborationModel.findById(collaborationId);
+    if (!collaboration) {
+      return sendApiResponse(res, 404, "Collaboration not found.");
+    }
+
+    // Update the collaboration
+    const updatedCollaboration = await CollaborationModel.findByIdAndUpdate(
+      collaborationId,
+      {
+        deactivatedBy: userRole,
+        collaborationStatus: "DEACTIVATED",
+      },
+      { new: true } // Return the updated document
+    );
+
+    return sendApiResponse(
+      res,
+      200,
+      "Collaboration deactivated successfully.",
+      { collaboration: updatedCollaboration }
+    );
+  } catch (e) {
+    console.error("Error while deactivating collaboration:", e);
+    return sendApiResponse(res, 500, "Internal server error", null, e);
+  }
+};
+
 export {
   requestStatusChange,
   getCollaborationStatusByProduct,
   getCollaborationById,
   activateCollaboration,
+  deactivateCollaboration
 };
