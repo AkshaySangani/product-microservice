@@ -221,6 +221,8 @@ export const updateCollaborationDetails = async (
       );
     }
 
+    const product = await ProductModel.findById(collaboration?.productId)
+
     let isProposalUpdated = false;
 
     // -------- Update negotiation proposals --------
@@ -306,6 +308,14 @@ export const updateCollaborationDetails = async (
       collaboration.negotiation.agreedByVendor = agreedByVendor;
 
     await collaboration.save();
+
+    sendNotification(
+      req,
+      [userRole === 'creator' ? collaboration.vendorId : collaboration.creatorId],
+      `New bid for product ${product?.title} from ${userRole === 'creator'? 'vendor':'creator'}`,
+      userRole === 'creator'? 'vendor':'creator',
+      'collaboration'
+    );
 
     return res.status(200).json({
       message: "Collaboration details updated successfully.",

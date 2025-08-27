@@ -9,6 +9,7 @@ import {
   VendorModel,
 } from "../../../database/model";
 import { AuthRequest } from "../../../types/authRequest";
+import { sendNotification } from "../../../common/sendNotification";
 
 // send collaboration request to vendor
 const sendCollaborationRequestToVendor = async (
@@ -29,6 +30,16 @@ const sendCollaborationRequestToVendor = async (
     if (!vendor) {
       return sendApiResponse(res, 404, "Vendor not found");
     }
+
+    const creator = await CreatorModel.findById(creatorId);
+    if (!creator) {
+      return sendApiResponse(res, 404, "Creator not found");
+    }
+
+    const vendorProduct: any = await ProductModel.findOne({
+      productId,
+      vendorId,
+    });
 
     const collaboration = await CollaborationModel.findOne({
       creatorId,
@@ -53,6 +64,15 @@ const sendCollaborationRequestToVendor = async (
     });
 
     await newCollaboration.save();
+
+    // 4f. Send notification to vendor
+    sendNotification(
+      req,
+      [vendorId],
+      `New collaboration request from ${creator.full_name} for product ${vendorProduct?.title}`,
+      "vendor",
+      "collaboration"
+    );
 
     // Step 5: Return results summary
     return sendApiResponse(res, 201, "Collaboration request processed", {

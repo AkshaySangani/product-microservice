@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { categoryController } from '../controller';
 import { createCampaign, updateCampaign, getCampaignById, getCampaignList } from '../controller/campaign/campaign.controller';
 import { VendorAuthMiddleware } from '../middleware/vendorAuth.middleware';
 import multer from 'multer';

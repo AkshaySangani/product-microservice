@@ -5,6 +5,7 @@ import {
   MessagesModel,
   ProductModel,
   RequestModel,
+  VendorModel,
   VendorProductModel,
 } from "../../../database/model";
 import sendApiResponse from "../../../common";
@@ -75,6 +76,10 @@ const sendCollaborationRequestToCreator = async (
       return sendApiResponse(res, 404, "Creator not found");
     }
 
+    const vendor = await VendorModel.findById(vendorId);
+    if (!vendor) {
+      return sendApiResponse(res, 404, "Vendor not found");
+    }
     // Step 3: Define who is sending the request
     // const requestFrom = userRole === "creator" ? "CREATOR" : "VENDOR";
 
@@ -139,12 +144,14 @@ const sendCollaborationRequestToCreator = async (
 
           await newCollaboration.save();
 
-          // 4f. Send notification to vendor
-          // sendNotification(
-          //     req,
-          //     [vendorId],
-          //     `New collaboration request from ${creator.full_name} for product ${vendorProduct?.title}`
-          //   );
+          // 4f. Send notification to creator
+          sendNotification(
+              req,
+              [vendorId],
+              `New collaboration request from ${vendor.business_name} for product ${vendorProduct?.title}`,
+              'vendor',
+              'collaboration'
+            );
 
           return {
             message: `Collaboration created for product ${vendorProduct?.title}`,
