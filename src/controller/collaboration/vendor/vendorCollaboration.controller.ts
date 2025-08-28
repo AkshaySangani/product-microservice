@@ -1,12 +1,10 @@
-import { Request, Response } from "express";
+import { Response } from "express";
 import {
   CollaborationModel,
   CreatorModel,
   MessagesModel,
   ProductModel,
-  RequestModel,
   VendorModel,
-  VendorProductModel,
 } from "../../../database/model";
 import sendApiResponse from "../../../common";
 import { AuthRequest } from "../../../types/authRequest";
@@ -25,12 +23,16 @@ const getCreatorWiseProductList = async (req: AuthRequest, res: Response) => {
     const collaborationList = await CollaborationModel.find({
       creatorId,
       vendorId,
-    });
+    }).sort({ createdAt: -1 }); // latest first
 
     // Create a map of productId => collabStatus
     const collabMap = new Map<string, string>();
     for (const collab of collaborationList) {
-      collabMap.set(collab.productId.toString(), collab.collaborationStatus); // Assuming `status` field exists
+      const productId = collab.productId.toString();
+      if (!collabMap.has(productId)) {
+        // first one encountered (latest because of sort)
+        collabMap.set(productId, collab.collaborationStatus);
+      }
     }
 
     // Attach collabStatus to each product
@@ -89,7 +91,7 @@ const sendCollaborationRequestToCreator = async (
         try {
           // 4a. Check vendor-product association
           const vendorProduct: any = await ProductModel.findOne({
-            productId,
+            _id: productId,
             vendorId,
           });
 
@@ -101,7 +103,12 @@ const sendCollaborationRequestToCreator = async (
             vendorId,
             productId,
           });
-          if (collaboration)
+
+          console.log("collboratinss", collaboration);
+          if (
+            collaboration &&
+            collaboration.collaborationStatus !== "DEACTIVATED"
+          )
             return {
               error: `Collaboration already exists for product ${vendorProduct?.title}`,
             };
@@ -146,12 +153,12 @@ const sendCollaborationRequestToCreator = async (
 
           // 4f. Send notification to creator
           sendNotification(
-              req,
-              [creatorId],
-              `New collaboration request from ${vendor.business_name} for product ${vendorProduct?.title}`,
-              'vendor',
-              'collaboration'
-            );
+            req,
+            [creatorId],
+            `New collaboration request from ${vendor.business_name} for product ${vendorProduct?.title}`,
+            "vendor",
+            "collaboration"
+          );
 
           return {
             message: `Collaboration created for product ${vendorProduct?.title}`,
@@ -248,7 +255,10 @@ const collaborationList = async (req: AuthRequest, res: Response) => {
       })
       .populate({
         path: "creatorId",
-        populate: [{ path: "category", model: "Category" },{path: 'channels', model: 'CreatorChannel'}],
+        populate: [
+          { path: "category", model: "Category" },
+          { path: "channels", model: "CreatorChannel" },
+        ],
       })
       .populate({
         path: "bids",

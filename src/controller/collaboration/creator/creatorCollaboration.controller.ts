@@ -37,7 +37,7 @@ const sendCollaborationRequestToVendor = async (
     }
 
     const vendorProduct: any = await ProductModel.findOne({
-      productId,
+      _id: productId,
       vendorId,
     });
 
