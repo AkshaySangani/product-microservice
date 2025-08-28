@@ -503,6 +503,23 @@ const activateCollaboration = async (req: AuthRequest, res: Response) => {
     collaboration.couponCode = collaboration.productId.couponCode;
 
     await collaboration.save();
+
+    sendNotification(
+      req,
+      [
+        `${
+          userRole === "creator"
+            ? collaboration.vendorId?._id
+            : collaboration.creatorId?._id
+        }`,
+      ],
+      `Collaboration Active for ${collaboration?.productId?.title} with ${
+        userRole === "creator" ? collaboration.creatorId?.full_name : collaboration.vendorId?.business_name
+      }`,
+      userRole === "creator" ? "vendor" : "creator",
+      "collaboration"
+    );
+
     return sendApiResponse(res, 200, "Collaboration activated successfully", {
       collaboration,
     });
