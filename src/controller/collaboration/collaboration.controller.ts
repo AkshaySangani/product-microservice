@@ -6,6 +6,8 @@ import {
   CollaborationModel,
   ProductModel,
   BidModel,
+  VendorModel,
+  CreatorModel,
 } from "../../database/model";
 import { FRONTEND_URL } from "../../config";
 import { sendNotification } from "../../common/sendNotification";
@@ -24,7 +26,8 @@ const requestStatusChange = async (req: AuthRequest, res: Response) => {
     const collaboration: any = await CollaborationModel.findById(
       collaborationId
     ).populate("productId");
-
+    const vendor = await VendorModel.findById(collaboration.vendorId);
+    const creator = await CreatorModel.findById(collaboration.creatorId);
     // -------------------- Role-Based Ownership Check --------------------
     if (
       userRole === "vendor" &&
@@ -57,8 +60,38 @@ const requestStatusChange = async (req: AuthRequest, res: Response) => {
         // collaboration.negotiation.agreedByVendor = true;
       }
       collaboration.bids.push(newBid._id);
+      sendNotification(
+        req,
+        [
+          `${
+            userRole === "creator"
+              ? collaboration.vendorId
+              : collaboration.creatorId
+          }`,
+        ],
+        `Collaboration request Accepted by ${
+          userRole === "creator" ? creator?.full_name : vendor?.business_name
+        }`,
+        userRole === "creator" ? "vendor" : "creator",
+        "collaboration"
+      );
     } else if (status === "rejected") {
       collaboration.collaborationStatus = "REJECTED";
+      sendNotification(
+        req,
+        [
+          `${
+            userRole === "creator"
+              ? collaboration.vendorId
+              : collaboration.creatorId
+          }`,
+        ],
+        `Collaboration request Rejected by ${
+          userRole === "creator" ? creator?.full_name : vendor?.business_name
+        }`,
+        userRole === "creator" ? "vendor" : "creator",
+        "collaboration"
+      );
     }
 
     // -------------------- If Both Agreed, Mark as PENDING --------------------
@@ -309,7 +342,6 @@ export const updateCollaborationDetails = async (
 
     await collaboration.save();
 
-
     return res.status(200).json({
       message: "Collaboration details updated successfully.",
       data: collaboration,
@@ -496,6 +528,10 @@ const deactivateCollaboration = async (req: AuthRequest, res: Response) => {
       return sendApiResponse(res, 404, "Collaboration not found.");
     }
 
+    if (collaboration.collaborationStatus !== "ACTIVE") {
+      return sendApiResponse(res, 400, "Collaboration not active");
+    }
+
     // Update the collaboration
     const updatedCollaboration = await CollaborationModel.findByIdAndUpdate(
       collaborationId,
@@ -523,5 +559,5 @@ export {
   getCollaborationStatusByProduct,
   getCollaborationById,
   activateCollaboration,
-  deactivateCollaboration
+  deactivateCollaboration,
 };
