@@ -215,8 +215,18 @@ const productAndVendorSearchResultsForCreator = async (
   }
 };
 
-const productSearchResultsForCreator = async (req: AuthRequest, res: Response) => {
-  const { search, page = 1, limit = 20, vendorId, category, subCategory } = req.query;
+const productSearchResultsForCreator = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  const {
+    search,
+    page = 1,
+    limit = 20,
+    vendorId,
+    category,
+    subCategory,
+  } = req.query;
   const searchRegex = new RegExp(search as string, "i");
   const pageNumber = Number(page);
   const limitNumber = Number(limit);
@@ -228,10 +238,14 @@ const productSearchResultsForCreator = async (req: AuthRequest, res: Response) =
       .lean();
 
     const categoryMapping = await CategoryMappingModel.find({
-      creatorCategory: { $in: [...(creator?.category || []), ...(creator?.sub_category || [])] }
-    }).select("vendorCategory").lean();
+      creatorCategory: {
+        $in: [...(creator?.category || []), ...(creator?.sub_category || [])],
+      },
+    })
+      .select("vendorCategory")
+      .lean();
 
-    const recommendedCategories = categoryMapping.map(c => c.vendorCategory);
+    const recommendedCategories = categoryMapping.map((c) => c.vendorCategory);
 
     const baseCondition: any = { status: "ACTIVE" };
 
@@ -247,18 +261,26 @@ const productSearchResultsForCreator = async (req: AuthRequest, res: Response) =
 
     if (category) {
       const categoryArray = Array.isArray(category) ? category : [category];
-      baseCondition.category = { $in: categoryArray };
+      const subCategoryArray = Array.isArray(category) ? category : [category];
+
+      baseCondition.$or = [
+        { category: { $in: categoryArray } },
+        { subCategory: { $in: subCategoryArray } },
+      ];
     }
 
     if (subCategory) {
-      const subCategoryArray = Array.isArray(subCategory) ? subCategory : [subCategory];
+      const subCategoryArray = Array.isArray(subCategory)
+        ? subCategory
+        : [subCategory];
       baseCondition.subCategory = { $in: subCategoryArray };
     }
 
     let finalProductList: any[] = [];
     let productCount = 0;
 
-    const applyHybridFeed = !category && !subCategory && !search && recommendedCategories.length > 0;
+    const applyHybridFeed =
+      !category && !subCategory && !search && recommendedCategories.length > 0;
 
     if (applyHybridFeed) {
       // -----------------------------------------------
@@ -270,20 +292,20 @@ const productSearchResultsForCreator = async (req: AuthRequest, res: Response) =
         ...baseCondition,
         $or: [
           { category: { $in: recommendedCategories } },
-          { subCategory: { $in: recommendedCategories } }
-        ]
+          { subCategory: { $in: recommendedCategories } },
+        ],
       })
         .limit(50)
         .populate("category")
         .sort({ createdAt: -1 })
         .lean();
 
-      const recommendedIds = recommendedProducts.map(p => p._id.toString());
+      const recommendedIds = recommendedProducts.map((p) => p._id.toString());
 
       // Fetch general products excluding recommended
       const generalProducts = await ProductModel.find({
         ...baseCondition,
-        _id: { $nin: recommendedIds }
+        _id: { $nin: recommendedIds },
       })
         .limit(50)
         .populate("category")
@@ -292,15 +314,17 @@ const productSearchResultsForCreator = async (req: AuthRequest, res: Response) =
 
       // Interleave strategy: 3 recommended, 2 general
       const interleaved: any[] = [];
-      let r = 0, g = 0;
+      let r = 0,
+        g = 0;
       while (r < recommendedProducts.length || g < generalProducts.length) {
-        for (let i = 0; i < 3 && r < recommendedProducts.length; i++) interleaved.push(recommendedProducts[r++]);
-        for (let i = 0; i < 2 && g < generalProducts.length; i++) interleaved.push(generalProducts[g++]);
+        for (let i = 0; i < 3 && r < recommendedProducts.length; i++)
+          interleaved.push(recommendedProducts[r++]);
+        for (let i = 0; i < 2 && g < generalProducts.length; i++)
+          interleaved.push(generalProducts[g++]);
       }
 
       finalProductList = interleaved.slice(skip, skip + limitNumber);
       productCount = interleaved.length;
-
     } else {
       // ----------------------------------------------------
       // 🟩 STANDARD PRODUCT FETCH (filtered / searched case)
@@ -313,7 +337,7 @@ const productSearchResultsForCreator = async (req: AuthRequest, res: Response) =
           .populate("category")
           .sort({ createdAt: -1 })
           .lean(),
-        ProductModel.countDocuments(baseCondition)
+        ProductModel.countDocuments(baseCondition),
       ]);
 
       finalProductList = productListRaw;
@@ -323,21 +347,23 @@ const productSearchResultsForCreator = async (req: AuthRequest, res: Response) =
     // -----------------------------------------
     // 🔗 Map collaborations to products
     // -----------------------------------------
-    const productIds = finalProductList.map(p => p._id);
+    const productIds = finalProductList.map((p) => p._id);
     const collaborationMap = new Map<string, any>();
 
     if (productIds.length > 0) {
       const collaborationList = await CollaborationModel.find({
         productId: { $in: productIds },
-        creatorId: req.user._id
-      }).lean().select("collaborationStatus productId");
+        creatorId: req.user._id,
+      })
+        .lean()
+        .select("collaborationStatus productId");
 
-      collaborationList.forEach(collab => {
+      collaborationList.forEach((collab) => {
         collaborationMap.set(collab.productId.toString(), collab);
       });
     }
 
-    const productList = finalProductList.map(p => ({
+    const productList = finalProductList.map((p) => ({
       ...p,
       collaboration: collaborationMap.get(p._id.toString()) || null,
     }));
@@ -351,7 +377,7 @@ const productSearchResultsForCreator = async (req: AuthRequest, res: Response) =
       const suggestedCondition: any = {
         status: "ACTIVE",
         category: { $in: creator?.category || [] },
-        subCategory: { $in: creator?.sub_category || [] }
+        subCategory: { $in: creator?.sub_category || [] },
       };
 
       const [suggestedRaw, suggestedCount] = await Promise.all([
@@ -363,21 +389,23 @@ const productSearchResultsForCreator = async (req: AuthRequest, res: Response) =
         ProductModel.countDocuments(suggestedCondition),
       ]);
 
-      const suggestedIds = suggestedRaw.map(p => p._id);
+      const suggestedIds = suggestedRaw.map((p) => p._id);
       const suggestedMap = new Map<string, any>();
 
       if (suggestedIds.length > 0) {
         const suggestedCollabs = await CollaborationModel.find({
           productId: { $in: suggestedIds },
-          creatorId: req.user._id
-        }).select("collaborationStatus productId").lean();
+          creatorId: req.user._id,
+        })
+          .select("collaborationStatus productId")
+          .lean();
 
-        suggestedCollabs.forEach(collab => {
+        suggestedCollabs.forEach((collab) => {
           suggestedMap.set(collab.productId.toString(), collab);
         });
       }
 
-      const suggestedProductList = suggestedRaw.map(p => ({
+      const suggestedProductList = suggestedRaw.map((p) => ({
         ...p,
         collaboration: suggestedMap.get(p._id.toString()) || null,
       }));
@@ -391,17 +419,24 @@ const productSearchResultsForCreator = async (req: AuthRequest, res: Response) =
     // -----------------------------------------
     // ✅ Final response
     // -----------------------------------------
-    return sendApiResponse(res, 200, "Product search results fetched successfully", {
-      productList: { list: productList, total: productCount },
-      suggestedList,
-    });
-
+    return sendApiResponse(
+      res,
+      200,
+      "Product search results fetched successfully",
+      {
+        productList: { list: productList, total: productCount },
+        suggestedList,
+      }
+    );
   } catch (error) {
     console.error("Error while getting product search results", error);
     return sendApiResponse(res, 500, "Internal server error");
   }
 };
 
-  
-
-export { getCreatorList, productListByCreator, productSearchResultsForCreator, productAndVendorSearchResultsForCreator };
+export {
+  getCreatorList,
+  productListByCreator,
+  productSearchResultsForCreator,
+  productAndVendorSearchResultsForCreator,
+};
