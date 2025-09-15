@@ -1,12 +1,14 @@
 import { Request, Response } from "express";
 import sendApiResponse from "../../common";
 import {
+  AccountModel,
   CampaignModel,
   CategoryModel,
   CollaborationModel,
   CreatorModel,
   ProductModel,
   RequestModel,
+  VendorModel,
   WishListModel,
 } from "../../database/model";
 import { VendorProductModel } from "../../database/model";
@@ -203,6 +205,30 @@ export const updateProductStatus = async () => {
   const now = new Date();
 
   try {
+    // STEP 1: Get deleted account IDs
+    const deletedAccounts = await AccountModel.find(
+      { isDeleted: true },
+      { _id: 1 }
+    ).lean();
+    const deletedAccountIds = new Set(
+      deletedAccounts.map((acc) => acc._id.toString())
+    );
+
+    // STEP 2: Get active vendor IDs (whose account is not deleted)
+    const validVendors = await VendorModel.find(
+      { accountId: { $nin: Array.from(deletedAccountIds) } },
+      { _id: 1 }
+    ).lean();
+    const validVendorIds = new Set(validVendors.map((v) => v._id.toString()));
+
+    // STEP 3: Get valid creator IDs (whose account is not deleted)
+    const validCreators = await CreatorModel.find(
+      { accountId: { $nin: Array.from(deletedAccountIds) } },
+      { _id: 1 }
+    ).lean();
+    const validCreatorIds = new Set(validCreators.map((c) => c._id.toString()));
+
+    // STEP 4: Fetch all products
     const products = await ProductModel.find(
       {},
       {
@@ -211,6 +237,7 @@ export const updateProductStatus = async () => {
         startDate: 1,
         endDate: 1,
         lifeTime: 1,
+        vendorId: 1,
       }
     ).lean();
 
@@ -218,7 +245,13 @@ export const updateProductStatus = async () => {
     const bulkCollabOps: any[] = [];
 
     for (const product of products) {
-      const { _id, startDate, endDate, lifeTime, status } = product;
+      const { _id, startDate, endDate, lifeTime, status, vendorId } = product;
+
+      // Skip if vendor is linked to a deleted account
+      if (!validVendorIds.has(vendorId?.toString())) {
+        continue;
+      }
+
       let newStatus = status;
 
       if (lifeTime) {
@@ -265,6 +298,8 @@ export const updateProductStatus = async () => {
             updateMany: {
               filter: {
                 productId: _id,
+                vendorId: { $in: Array.from(validVendorIds) },
+                creatorId: { $in: Array.from(validCreatorIds) },
                 collaborationStatus: { $ne: collaborationStatus },
               },
               update: { $set: { collaborationStatus } },
@@ -274,6 +309,7 @@ export const updateProductStatus = async () => {
       }
     }
 
+    // EXECUTE BULK OPS
     if (bulkProductOps.length > 0) {
       await ProductModel.bulkWrite(bulkProductOps);
       console.log(`Updated ${bulkProductOps.length} product statuses.`);
