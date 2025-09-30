@@ -56,4 +56,6 @@ export const productValidationSchema = Joi.object({
     .optional(),
 
   couponCode: Joi.string().optional(),
+  freeProduct: Joi.boolean().default(false)
+
 }).options({ stripUnknown: true });

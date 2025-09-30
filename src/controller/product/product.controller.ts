@@ -290,7 +290,7 @@ export const updateProductStatus = async () => {
         if (newStatus === "EXPIRED") {
           collaborationStatus = "EXPIRED";
         } else if (newStatus === "ACTIVE") {
-          collaborationStatus = "SUCCESS";
+          collaborationStatus = "ACTIVE";
         }
 
         if (collaborationStatus) {
