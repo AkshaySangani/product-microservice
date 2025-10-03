@@ -8,7 +8,7 @@ import { CollaborationModel, ProductModel, VendorModel } from "../../database/mo
 const creatorAnalytics = async (req: AuthRequest, res: Response) => {
     try {
       const { _id: creatorId } = req.user;
-      const { page = 1, limit = 20, vendorId, productId } = req.query;
+      const { page = 1, limit = 20, vendorId, productId, days } = req.query;
       const skip = (Number(page) - 1) * Number(limit);
   
       // Step 1: Build base match stage for active collaborations of the creator
@@ -16,6 +16,13 @@ const creatorAnalytics = async (req: AuthRequest, res: Response) => {
         creatorId: new mongoose.Types.ObjectId(creatorId),
       };
   
+      const dateFilter =
+      days && !isNaN(parseInt(days as string, 10))
+        ? new Date(
+            Date.now() - parseInt(days as string, 10) * 24 * 60 * 60 * 1000
+          )
+        : null;
+
       // Step 2: Add optional filters if provided in query
       if (vendorId)
         matchStage.vendorId = new mongoose.Types.ObjectId(vendorId as string);
@@ -30,8 +37,25 @@ const creatorAnalytics = async (req: AuthRequest, res: Response) => {
         {
           $lookup: {
             from: "orders",
-            localField: "_id",
-            foreignField: "collaborationId",
+            let: { collabId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $eq: ["$collaborationId", "$$collabId"],
+                  },
+                },
+              },
+              ...(dateFilter
+                ? [
+                    {
+                      $match: {
+                        createdAt: { $gte: dateFilter },
+                      },
+                    },
+                  ]
+                : []),
+            ],
             as: "orders",
           },
         },
@@ -57,6 +81,15 @@ const creatorAnalytics = async (req: AuthRequest, res: Response) => {
                   },
                 },
               },
+              ...(dateFilter
+                ? [
+                    {
+                      $match: {
+                        createdAt: { $gte: dateFilter },
+                      },
+                    },
+                  ]
+                : []),
             ],
             as: "views",
           },
@@ -143,7 +176,7 @@ const creatorAnalytics = async (req: AuthRequest, res: Response) => {
 const creatorAnalyticsPageState = async (req: AuthRequest, res: Response) => {
   try {
     const { _id: creatorId } = req.user;
-    const { productId, vendorId } = req.query;
+    const { productId, vendorId, days } = req.query;
 
     // Step 1: Build base match condition for the creator
     const matchStage: any = {
@@ -159,7 +192,14 @@ const creatorAnalyticsPageState = async (req: AuthRequest, res: Response) => {
       matchStage.vendorId = new mongoose.Types.ObjectId(vendorId as string);
     }
 
-    // Step 3: Perform aggregation to calculate metrics
+    // ✅ We do NOT filter by collaboration createdAt here.
+    // We want all collaborations, just filter orders & views later.
+
+    const dateFilter =
+      days && !isNaN(parseInt(days as string, 10))
+        ? new Date(Date.now() - parseInt(days as string, 10) * 24 * 60 * 60 * 1000)
+        : null;
+
     const result = await CollaborationModel.aggregate([
       // Match collaborations for the current creator (with optional filters)
       { $match: matchStage },
@@ -168,8 +208,25 @@ const creatorAnalyticsPageState = async (req: AuthRequest, res: Response) => {
       {
         $lookup: {
           from: "orders",
-          localField: "_id",
-          foreignField: "collaborationId",
+          let: { collabId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: ["$collaborationId", "$$collabId"],
+                },
+              },
+            },
+            ...(dateFilter
+              ? [
+                  {
+                    $match: {
+                      createdAt: { $gte: dateFilter },
+                    },
+                  },
+                ]
+              : []),
+          ],
           as: "orders",
         },
       },
@@ -184,17 +241,21 @@ const creatorAnalyticsPageState = async (req: AuthRequest, res: Response) => {
               $match: {
                 $expr: {
                   $and: [
-                    {
-                      $eq: [
-                        { $toString: "$collaborationId" },
-                        { $toString: "$$collabId" },
-                      ],
-                    },
+                    { $eq: [{ $toString: "$collaborationId" }, { $toString: "$$collabId" }] },
                     { $eq: ["$impression", "VISIT"] },
                   ],
                 },
               },
             },
+            ...(dateFilter
+              ? [
+                  {
+                    $match: {
+                      createdAt: { $gte: dateFilter },
+                    },
+                  },
+                ]
+              : []),
           ],
           as: "views",
         },
@@ -206,6 +267,7 @@ const creatorAnalyticsPageState = async (req: AuthRequest, res: Response) => {
           totalRevenue: { $sum: "$orders.orderAmount" },
           totalOrders: { $size: "$orders" },
           totalViews: { $size: "$views" },
+          totalCommissionPaid: { $sum: "$orders.commission" },
         },
       },
 
@@ -216,7 +278,8 @@ const creatorAnalyticsPageState = async (req: AuthRequest, res: Response) => {
           totalRevenue: { $sum: "$totalRevenue" },
           totalOrders: { $sum: "$totalOrders" },
           totalViews: { $sum: "$totalViews" },
-          totalCollaborations: { $sum: 1 },
+          totalCollaborations: { $sum: 1 }, // ✅ counts ALL collaborations matched in step 1
+          totalCommissionPaid: { $sum: "$totalCommissionPaid" },
         },
       },
 
@@ -232,6 +295,7 @@ const creatorAnalyticsPageState = async (req: AuthRequest, res: Response) => {
               },
             ],
           },
+          totalCommissionPaid: "$totalCommissionPaid",
         },
       },
     ]);
@@ -243,6 +307,7 @@ const creatorAnalyticsPageState = async (req: AuthRequest, res: Response) => {
       totalViews: 0,
       totalCollaborations: 0,
       conversionRate: 0,
+      totalCommissionPaid: 0
     };
 
     return sendApiResponse(
