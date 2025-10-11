@@ -73,7 +73,8 @@ const requestStatusChange = async (req: AuthRequest, res: Response) => {
           userRole === "creator" ? creator?.full_name : vendor?.business_name
         }`,
         userRole === "creator" ? "vendor" : "creator",
-        "collaboration"
+        "collaboration",
+        userRole === "creator" ? "/vendor/creators/collaboration/" : "/creator/collaboration/" + collaborationId
       );
     } else if (status === "rejected") {
       collaboration.collaborationStatus = "REJECTED";
@@ -90,7 +91,8 @@ const requestStatusChange = async (req: AuthRequest, res: Response) => {
           userRole === "creator" ? creator?.full_name : vendor?.business_name
         }`,
         userRole === "creator" ? "vendor" : "creator",
-        "collaboration"
+        "collaboration",
+        userRole === "creator" ? "/vendor/creators/collaboration" : "/creator/collaboration"
       );
     }
 
@@ -517,7 +519,8 @@ const activateCollaboration = async (req: AuthRequest, res: Response) => {
         userRole === "creator" ? collaboration.creatorId?.full_name : collaboration.vendorId?.business_name
       }`,
       userRole === "creator" ? "vendor" : "creator",
-      "collaboration"
+      "collaboration",
+      userRole === "creator" ? "/vendor/creators/collaboration/" : "/creator/collaboration/" + collaborationId
     );
 
     return sendApiResponse(res, 200, "Collaboration activated successfully", {

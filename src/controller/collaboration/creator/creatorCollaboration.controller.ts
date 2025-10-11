@@ -71,7 +71,8 @@ const sendCollaborationRequestToVendor = async (
       [vendorId],
       `New collaboration request from ${creator.full_name} for product ${vendorProduct?.title}`,
       "vendor",
-      "collaboration"
+      "collaboration",
+      '/vendor/creators/collaboration'
     );
 
     // Step 5: Return results summary
