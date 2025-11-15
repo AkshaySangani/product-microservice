@@ -156,7 +156,7 @@ const sendCollaborationRequestToCreator = async (
             req,
             [creatorId],
             `New collaboration request from ${vendor.business_name} for product ${vendorProduct?.title}`,
-            "vendor",
+            "creator",
             "collaboration",
             '/creator/collaboration/'
           );
