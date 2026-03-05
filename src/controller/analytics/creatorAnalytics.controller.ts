@@ -6,171 +6,172 @@ import { CollaborationModel, ProductModel, VendorModel } from "../../database/mo
 
 // Controller: Fetch analytics for creator collaborations
 const creatorAnalytics = async (req: AuthRequest, res: Response) => {
-    try {
-      const { _id: creatorId } = req.user;
-      const { page = 1, limit = 20, vendorId, productId, days } = req.query;
-      const skip = (Number(page) - 1) * Number(limit);
-  
-      // Step 1: Build base match stage for active collaborations of the creator
-      const matchStage: any = {
-        creatorId: new mongoose.Types.ObjectId(creatorId),
-      };
-  
-      const dateFilter =
+  try {
+    const { _id: creatorId } = req.user;
+    const { page = 1, limit = 20, vendorId, productId, days } = req.query;
+    const skip = (Number(page) - 1) * Number(limit);
+
+    // Step 1: Build base match stage for active collaborations of the creator
+    const matchStage: any = {
+      creatorId: new mongoose.Types.ObjectId(creatorId),
+      collaborationStatus: { $in: ["Active", "EXPIRED", "PAUSED", "DEACTIVATED"] }
+    };
+
+    const dateFilter =
       days && !isNaN(parseInt(days as string, 10))
         ? new Date(
-            Date.now() - parseInt(days as string, 10) * 24 * 60 * 60 * 1000
-          )
+          Date.now() - parseInt(days as string, 10) * 24 * 60 * 60 * 1000
+        )
         : null;
 
-      // Step 2: Add optional filters if provided in query
-      if (vendorId)
-        matchStage.vendorId = new mongoose.Types.ObjectId(vendorId as string);
-      if (productId)
-        matchStage.productId = new mongoose.Types.ObjectId(productId as string);
-  
-      // Step 3: Aggregate collaborations with joined orders and impressions (VISITS only)
-      const analytics = await CollaborationModel.aggregate([
-        { $match: matchStage },
-  
-        // Join orders to calculate revenue, orders count and commission
-        {
-          $lookup: {
-            from: "orders",
-            let: { collabId: "$_id" },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $eq: ["$collaborationId", "$$collabId"],
-                  },
+    // Step 2: Add optional filters if provided in query
+    if (vendorId)
+      matchStage.vendorId = new mongoose.Types.ObjectId(vendorId as string);
+    if (productId)
+      matchStage.productId = new mongoose.Types.ObjectId(productId as string);
+
+    // Step 3: Aggregate collaborations with joined orders and impressions (VISITS only)
+    const analytics = await CollaborationModel.aggregate([
+      { $match: matchStage },
+
+      // Join orders to calculate revenue, orders count and commission
+      {
+        $lookup: {
+          from: "orders",
+          let: { collabId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: ["$collaborationId", "$$collabId"],
                 },
               },
-              ...(dateFilter
-                ? [
-                    {
-                      $match: {
-                        createdAt: { $gte: dateFilter },
-                      },
-                    },
-                  ]
-                : []),
-            ],
-            as: "orders",
-          },
-        },
-  
-        // Join impressions to get views
-        {
-          $lookup: {
-            from: "impressions",
-            let: { collabId: "$_id" },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      {
-                        $eq: [
-                          { $toString: "$collaborationId" },
-                          { $toString: "$$collabId" },
-                        ],
-                      },
-                      { $eq: ["$impression", "VISIT"] },
-                    ],
+            },
+            ...(dateFilter
+              ? [
+                {
+                  $match: {
+                    createdAt: { $gte: dateFilter },
                   },
                 },
-              },
-              ...(dateFilter
-                ? [
+              ]
+              : []),
+          ],
+          as: "orders",
+        },
+      },
+
+      // Join impressions to get views
+      {
+        $lookup: {
+          from: "impressions",
+          let: { collabId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
                     {
-                      $match: {
-                        createdAt: { $gte: dateFilter },
-                      },
+                      $eq: [
+                        { $toString: "$collaborationId" },
+                        { $toString: "$$collabId" },
+                      ],
                     },
-                  ]
-                : []),
-            ],
-            as: "views",
-          },
+                    { $eq: ["$impression", "VISIT"] },
+                  ],
+                },
+              },
+            },
+            ...(dateFilter
+              ? [
+                {
+                  $match: {
+                    createdAt: { $gte: dateFilter },
+                  },
+                },
+              ]
+              : []),
+          ],
+          as: "views",
         },
-  
-        // Compute totals
-        {
-          $addFields: {
-            totalRevenue: { $sum: "$orders.orderAmount" },
-            totalOrders: { $size: "$orders" },
-            totalCommissionPaid: { $sum: "$orders.commission" },
-            totalViews: { $size: "$views" },
-          },
+      },
+
+      // Compute totals
+      {
+        $addFields: {
+          totalRevenue: { $sum: "$orders.orderAmount" },
+          totalOrders: { $size: "$orders" },
+          totalCommissionPaid: { $sum: "$orders.commission" },
+          totalViews: { $size: "$views" },
         },
-  
-        // Join vendor info
-        {
-          $lookup: {
-            from: "vendors",
-            localField: "vendorId",
-            foreignField: "_id",
-            as: "vendor",
-          },
+      },
+
+      // Join vendor info
+      {
+        $lookup: {
+          from: "vendors",
+          localField: "vendorId",
+          foreignField: "_id",
+          as: "vendor",
         },
-  
-        // Join product info
-        {
-          $lookup: {
-            from: "products",
-            localField: "productId",
-            foreignField: "_id",
-            as: "product",
-          },
+      },
+
+      // Join product info
+      {
+        $lookup: {
+          from: "products",
+          localField: "productId",
+          foreignField: "_id",
+          as: "product",
         },
-  
-        // Unwind vendor and product arrays
-        { $unwind: "$vendor" },
-        { $unwind: "$product" },
-  
-        // Final projection for UI
-        {
-          $project: {
-            vendorName: "$vendor.business_name",
-            vendorImage: "$vendor.profile_image",
-            vendorId: "$vendor._id",
-            productName: "$product.title",
-            productImage: { $arrayElemAt: ["$product.media", 0] },
-            productId: "$product._id",
-            totalRevenue: 1,
-            totalOrders: 1,
-            totalCommissionPaid: 1,
-            totalViews: 1,
-          },
+      },
+
+      // Unwind vendor and product arrays
+      { $unwind: "$vendor" },
+      { $unwind: "$product" },
+
+      // Final projection for UI
+      {
+        $project: {
+          vendorName: "$vendor.business_name",
+          vendorImage: "$vendor.profile_image",
+          vendorId: "$vendor._id",
+          productName: "$product.title",
+          productImage: { $arrayElemAt: ["$product.media", 0] },
+          productId: "$product._id",
+          totalRevenue: 1,
+          totalOrders: 1,
+          totalCommissionPaid: 1,
+          totalViews: 1,
         },
-  
-        // Step 4: Pagination and sorting
-        {
-          $facet: {
-            metadata: [{ $count: "total" }],
-            data: [
-              { $sort: { totalRevenue: -1 } },
-              { $skip: skip },
-              { $limit: Number(limit) },
-            ],
-          },
+      },
+
+      // Step 4: Pagination and sorting
+      {
+        $facet: {
+          metadata: [{ $count: "total" }],
+          data: [
+            { $sort: { totalRevenue: -1 } },
+            { $skip: skip },
+            { $limit: Number(limit) },
+          ],
         },
-      ]);
-  
-      const totalCount = analytics[0].metadata[0]?.total || 0;
-      const list = analytics[0].data;
-  
-      return sendApiResponse(res, 200, "Creator analytics fetched successfully", {
-        list,
-        count: totalCount,
-      });
-    } catch (error) {
-      console.error("Error while fetching creator analytics", error);
-      return sendApiResponse(res, 500, "Internal server error");
-    }
-  };
-  
+      },
+    ]);
+
+    const totalCount = analytics[0].metadata[0]?.total || 0;
+    const list = analytics[0].data;
+
+    return sendApiResponse(res, 200, "Creator analytics fetched successfully", {
+      list,
+      count: totalCount,
+    });
+  } catch (error) {
+    console.error("Error while fetching creator analytics", error);
+    return sendApiResponse(res, 500, "Internal server error");
+  }
+};
+
 
 // Controller: Fetch analytics page state for creator collaborations
 const creatorAnalyticsPageState = async (req: AuthRequest, res: Response) => {
@@ -180,6 +181,7 @@ const creatorAnalyticsPageState = async (req: AuthRequest, res: Response) => {
 
     // Step 1: Build base match condition for the creator
     const matchStage: any = {
+      collaborationStatus: { $in: ["Active", "EXPIRED", "PAUSED", "DEACTIVATED"] },
       creatorId: new mongoose.Types.ObjectId(creatorId),
     };
 
@@ -219,12 +221,12 @@ const creatorAnalyticsPageState = async (req: AuthRequest, res: Response) => {
             },
             ...(dateFilter
               ? [
-                  {
-                    $match: {
-                      createdAt: { $gte: dateFilter },
-                    },
+                {
+                  $match: {
+                    createdAt: { $gte: dateFilter },
                   },
-                ]
+                },
+              ]
               : []),
           ],
           as: "orders",
@@ -249,12 +251,12 @@ const creatorAnalyticsPageState = async (req: AuthRequest, res: Response) => {
             },
             ...(dateFilter
               ? [
-                  {
-                    $match: {
-                      createdAt: { $gte: dateFilter },
-                    },
+                {
+                  $match: {
+                    createdAt: { $gte: dateFilter },
                   },
-                ]
+                },
+              ]
               : []),
           ],
           as: "views",
@@ -339,6 +341,7 @@ const productAndVendorSearchResultsForCreator = async (
         {
           $match: {
             creatorId: new mongoose.Types.ObjectId(creatorId),
+            collaborationStatus: { $in: ["Active", "EXPIRED", "PAUSED", "DEACTIVATED"] }
             // collaborationStatus: "ACTIVE",
           },
         },
@@ -372,7 +375,7 @@ const productAndVendorSearchResultsForCreator = async (
         {
           $match: {
             creatorId: new mongoose.Types.ObjectId(creatorId),
-            collaborationStatus: "ACTIVE",
+            collaborationStatus: { $in: ["Active", "EXPIRED", "PAUSED", "DEACTIVATED"] }
           },
         },
         {
@@ -386,11 +389,11 @@ const productAndVendorSearchResultsForCreator = async (
         { $unwind: "$product" },
         {
           $match: {
-            $or: [
-              { "product.title": { $regex: searchRegex } },
-              // { "product.tags": { $in: [searchRegex] } },
-            ],
-            "product.status": "ACTIVE",
+            // $or: [
+            "product.title": { $regex: searchRegex },
+            // { "product.tags": { $in: [searchRegex] } },
+            // ],
+            // "product.status": "ACTIVE",
           },
         },
         // {

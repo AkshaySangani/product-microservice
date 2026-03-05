@@ -15,14 +15,15 @@ const vendorAnalytics = async (req: AuthRequest, res: Response) => {
     // Step 1: Build base match stage for active collaborations of the vendor
     const matchStage: any = {
       vendorId: new mongoose.Types.ObjectId(vendorId),
+      collaborationStatus: { $in: ["Active", "EXPIRED", "PAUSED", "DEACTIVATED"] }
       // collaborationStatus: "ACTIVE",
     };
 
     const dateFilter =
       days && !isNaN(parseInt(days as string, 10))
         ? new Date(
-            Date.now() - parseInt(days as string, 10) * 24 * 60 * 60 * 1000
-          )
+          Date.now() - parseInt(days as string, 10) * 24 * 60 * 60 * 1000
+        )
         : null;
 
     // Step 2: Add optional filters if provided in query
@@ -50,12 +51,12 @@ const vendorAnalytics = async (req: AuthRequest, res: Response) => {
             },
             ...(dateFilter
               ? [
-                  {
-                    $match: {
-                      createdAt: { $gte: dateFilter },
-                    },
+                {
+                  $match: {
+                    createdAt: { $gte: dateFilter },
                   },
-                ]
+                },
+              ]
               : []),
           ],
           as: "orders",
@@ -84,12 +85,12 @@ const vendorAnalytics = async (req: AuthRequest, res: Response) => {
             },
             ...(dateFilter
               ? [
-                  {
-                    $match: {
-                      createdAt: { $gte: dateFilter },
-                    },
+                {
+                  $match: {
+                    createdAt: { $gte: dateFilter },
                   },
-                ]
+                },
+              ]
               : []),
           ],
           as: "views",
@@ -179,6 +180,7 @@ const analyticsPageState = async (req: AuthRequest, res: Response) => {
     // Step 1: Build base match condition
     const matchStage: any = {
       vendorId: new mongoose.Types.ObjectId(vendorId),
+      collaborationStatus: { $in: ["Active", "EXPIRED", "PAUSED", "DEACTIVATED"] }
     };
 
     // Step 2: Apply optional filters (creatorId, productId)
@@ -196,8 +198,8 @@ const analyticsPageState = async (req: AuthRequest, res: Response) => {
     const dateFilter =
       days && !isNaN(parseInt(days as string, 10))
         ? new Date(
-            Date.now() - parseInt(days as string, 10) * 24 * 60 * 60 * 1000
-          )
+          Date.now() - parseInt(days as string, 10) * 24 * 60 * 60 * 1000
+        )
         : null;
 
     // Step 3: Perform aggregation to calculate metrics
@@ -220,12 +222,12 @@ const analyticsPageState = async (req: AuthRequest, res: Response) => {
             },
             ...(dateFilter
               ? [
-                  {
-                    $match: {
-                      createdAt: { $gte: dateFilter },
-                    },
+                {
+                  $match: {
+                    createdAt: { $gte: dateFilter },
                   },
-                ]
+                },
+              ]
               : []),
           ],
           as: "orders",
@@ -255,12 +257,12 @@ const analyticsPageState = async (req: AuthRequest, res: Response) => {
             },
             ...(dateFilter
               ? [
-                  {
-                    $match: {
-                      createdAt: { $gte: dateFilter },
-                    },
+                {
+                  $match: {
+                    createdAt: { $gte: dateFilter },
                   },
-                ]
+                },
+              ]
               : []),
           ],
           as: "views",
@@ -343,7 +345,7 @@ const productAndCreatorSearchResultsForVendor = async (
         {
           $match: {
             vendorId: new mongoose.Types.ObjectId(vendorId),
-            // collaborationStatus: "ACTIVE", // uncomment if needed
+            collaborationStatus: { $in: ["Active", "EXPIRED", "PAUSED", "DEACTIVATED"] }
           },
         },
         {
@@ -375,7 +377,7 @@ const productAndCreatorSearchResultsForVendor = async (
         {
           $match: {
             vendorId: new mongoose.Types.ObjectId(vendorId),
-            collaborationStatus: "ACTIVE",
+            collaborationStatus: { $in: ["Active", "EXPIRED", "PAUSED", "DEACTIVATED"] }
           },
         },
         {
