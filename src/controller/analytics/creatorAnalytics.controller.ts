@@ -14,7 +14,7 @@ const creatorAnalytics = async (req: AuthRequest, res: Response) => {
     // Step 1: Build base match stage for active collaborations of the creator
     const matchStage: any = {
       creatorId: new mongoose.Types.ObjectId(creatorId),
-      collaborationStatus: { $in: ["Active", "EXPIRED", "PAUSED", "DEACTIVATED"] }
+      collaborationStatus: { $in: ["ACTIVE", "EXPIRED", "PAUSED", "DEACTIVATED"] }
     };
 
     const dateFilter =
@@ -181,7 +181,7 @@ const creatorAnalyticsPageState = async (req: AuthRequest, res: Response) => {
 
     // Step 1: Build base match condition for the creator
     const matchStage: any = {
-      collaborationStatus: { $in: ["Active", "EXPIRED", "PAUSED", "DEACTIVATED"] },
+      collaborationStatus: { $in: ["ACTIVE", "EXPIRED", "PAUSED", "DEACTIVATED"] },
       creatorId: new mongoose.Types.ObjectId(creatorId),
     };
 
@@ -217,6 +217,7 @@ const creatorAnalyticsPageState = async (req: AuthRequest, res: Response) => {
                 $expr: {
                   $eq: ["$collaborationId", "$$collabId"],
                 },
+                orderStatus: "SETTLED", // ✅ Only consider settled orders for revenue and conversion metrics
               },
             },
             ...(dateFilter
@@ -341,7 +342,7 @@ const productAndVendorSearchResultsForCreator = async (
         {
           $match: {
             creatorId: new mongoose.Types.ObjectId(creatorId),
-            collaborationStatus: { $in: ["Active", "EXPIRED", "PAUSED", "DEACTIVATED"] }
+            collaborationStatus: { $in: ["ACTIVE", "EXPIRED", "PAUSED", "DEACTIVATED"] }
             // collaborationStatus: "ACTIVE",
           },
         },
@@ -375,7 +376,7 @@ const productAndVendorSearchResultsForCreator = async (
         {
           $match: {
             creatorId: new mongoose.Types.ObjectId(creatorId),
-            collaborationStatus: { $in: ["Active", "EXPIRED", "PAUSED", "DEACTIVATED"] }
+            collaborationStatus: { $in: ["ACTIVE", "EXPIRED", "PAUSED", "DEACTIVATED"] }
           },
         },
         {
