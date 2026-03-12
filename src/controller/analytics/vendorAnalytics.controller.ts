@@ -218,6 +218,7 @@ const analyticsPageState = async (req: AuthRequest, res: Response) => {
                 $expr: {
                   $eq: ["$collaborationId", "$$collabId"],
                 },
+                orderStatus: "SETTLED", // ✅ Only consider settled orders for revenue and conversion metrics
               },
             },
             ...(dateFilter
