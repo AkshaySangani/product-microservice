@@ -15,7 +15,7 @@ const vendorAnalytics = async (req: AuthRequest, res: Response) => {
     // Step 1: Build base match stage for active collaborations of the vendor
     const matchStage: any = {
       vendorId: new mongoose.Types.ObjectId(vendorId),
-      collaborationStatus: { $in: ["Active", "EXPIRED", "PAUSED", "DEACTIVATED"] }
+      collaborationStatus: { $in: ["ACTIVE", "EXPIRED", "PAUSED", "DEACTIVATED"] }
       // collaborationStatus: "ACTIVE",
     };
 
@@ -180,7 +180,7 @@ const analyticsPageState = async (req: AuthRequest, res: Response) => {
     // Step 1: Build base match condition
     const matchStage: any = {
       vendorId: new mongoose.Types.ObjectId(vendorId),
-      collaborationStatus: { $in: ["Active", "EXPIRED", "PAUSED", "DEACTIVATED"] }
+      collaborationStatus: { $in: ["ACTIVE", "EXPIRED", "PAUSED", "DEACTIVATED"] }
     };
 
     // Step 2: Apply optional filters (creatorId, productId)
@@ -346,7 +346,7 @@ const productAndCreatorSearchResultsForVendor = async (
         {
           $match: {
             vendorId: new mongoose.Types.ObjectId(vendorId),
-            collaborationStatus: { $in: ["Active", "EXPIRED", "PAUSED", "DEACTIVATED"] }
+            collaborationStatus: { $in: ["ACTIVE", "EXPIRED", "PAUSED", "DEACTIVATED"] }
           },
         },
         {
@@ -378,7 +378,7 @@ const productAndCreatorSearchResultsForVendor = async (
         {
           $match: {
             vendorId: new mongoose.Types.ObjectId(vendorId),
-            collaborationStatus: { $in: ["Active", "EXPIRED", "PAUSED", "DEACTIVATED"] }
+            collaborationStatus: { $in: ["ACTIVE", "EXPIRED", "PAUSED", "DEACTIVATED"] }
           },
         },
         {
