@@ -52,49 +52,21 @@ const requestStatusChange = async (req: AuthRequest, res: Response) => {
         sender: "vendor",
       });
       await newBid.save();
-      if (userRole === "creator") {
-        // collaboration.negotiation.agreedByCreator = true;
-        // collaboration.negotiation.agreedByVendor = false;
-      } else {
-        // collaboration.negotiation.agreedByCreator = false;
-        // collaboration.negotiation.agreedByVendor = true;
-      }
       collaboration.bids.push(newBid._id);
-      sendNotification(
-        req,
-        [
-          `${
-            userRole === "creator"
-              ? collaboration.vendorId
-              : collaboration.creatorId
-          }`,
-        ],
-        `Collaboration request Accepted by ${
-          userRole === "creator" ? creator?.full_name : vendor?.business_name
-        }`,
-        userRole === "creator" ? "vendor" : "creator",
-        "collaboration",
-        userRole === "creator" ? "/vendor/creators/collaboration/" : "/creator/collaboration/" + collaborationId
-      );
-    } else if (status === "rejected") {
-      collaboration.collaborationStatus = "REJECTED";
-      sendNotification(
-        req,
-        [
-          `${
-            userRole === "creator"
-              ? collaboration.vendorId
-              : collaboration.creatorId
-          }`,
-        ],
-        `Collaboration request Rejected by ${
-          userRole === "creator" ? creator?.full_name : vendor?.business_name
-        }`,
-        userRole === "creator" ? "vendor" : "creator",
-        "collaboration",
-        userRole === "creator" ? "/vendor/creators/collaboration" : "/creator/collaboration"
-      );
     }
+    sendNotification(
+      req,
+      {
+        _id: userRole === "creator"
+          ? collaboration.vendorId
+          : collaboration.creatorId,
+        title: `Collaboration Request ${status}`,
+        message: `Request ${status} by ${userRole === "creator" ? creator?.full_name : vendor?.business_name}`,
+        userType: userRole === "creator" ? "vendor" : "creator",
+        sender: userRole !== "creator" ? "vendor" : "creator",
+        notificationType: "collaboration",
+        path: userRole === "creator" ? "/vendor/creators/collaboration/" : "/creator/collaboration/" + collaborationId
+      });
 
     // -------------------- If Both Agreed, Mark as PENDING --------------------
     await collaboration.save();
@@ -508,19 +480,19 @@ const activateCollaboration = async (req: AuthRequest, res: Response) => {
 
     sendNotification(
       req,
-      [
-        `${
-          userRole === "creator"
-            ? collaboration.vendorId?._id
-            : collaboration.creatorId?._id
-        }`,
-      ],
-      `Collaboration Active for ${collaboration?.productId?.title} with ${
-        userRole === "creator" ? collaboration.creatorId?.full_name : collaboration.vendorId?.business_name
-      }`,
-      userRole === "creator" ? "vendor" : "creator",
-      "collaboration",
-      userRole === "creator" ? "/vendor/creators/collaboration/" : "/creator/collaboration/" + collaborationId
+      {
+        _id: userRole === "creator"
+          ? collaboration.vendorId?._id
+          : collaboration.creatorId?._id
+        ,
+        title: "Collaboration Active",
+        message: `For ${collaboration?.productId?.title} with ${userRole === "creator" ? collaboration.creatorId?.full_name : collaboration.vendorId?.business_name
+          }`,
+        sender: userRole !== "creator" ? "vendor" : "creator",
+        userType: userRole === "creator" ? "vendor" : "creator",
+        notificationType: "collaboration",
+        path: userRole === "creator" ? "/vendor/creators/collaboration/" : "/creator/collaboration/" + collaborationId
+      }
     );
 
     return sendApiResponse(res, 200, "Collaboration activated successfully", {

@@ -104,7 +104,6 @@ const sendCollaborationRequestToCreator = async (
             productId,
           });
 
-          console.log("collboratinss", collaboration);
           if (
             collaboration &&
             collaboration.collaborationStatus !== "DEACTIVATED"
@@ -154,11 +153,15 @@ const sendCollaborationRequestToCreator = async (
           // 4f. Send notification to creator
           sendNotification(
             req,
-            [creatorId],
-            `New collaboration request from ${vendor.business_name} for product ${vendorProduct?.title}`,
-            "creator",
-            "collaboration",
-            '/creator/collaboration/'
+            {
+              _id: creatorId,
+              title: "New Collaboration Request",
+              message: `Request from ${vendor.business_name} for product ${vendorProduct?.title}`,
+              sender: "vendor",
+              userType: "creator",
+              notificationType: "collaboration",
+              path: '/creator/collaboration/'
+            }
           );
 
           return {

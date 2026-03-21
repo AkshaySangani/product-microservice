@@ -68,11 +68,15 @@ const sendCollaborationRequestToVendor = async (
     // 4f. Send notification to vendor
     sendNotification(
       req,
-      [vendorId],
-      `New collaboration request from ${creator.full_name} for product ${vendorProduct?.title}`,
-      "vendor",
-      "collaboration",
-      '/vendor/creators/collaboration'
+      {
+        _id: creatorId,
+        title: "New Collaboration Request",
+        message: `Request from ${creator.full_name} for product ${vendorProduct?.title}`,
+        sender: "creator",
+        userType: "vendor",
+        notificationType: "collaboration",
+        path: '/vendor/creators/collaboration'
+      }
     );
 
     // Step 5: Return results summary

@@ -2,13 +2,19 @@ import axios from "axios"
 import { BACKEND_URL } from "../config"
 import { AuthRequest } from "../types/authRequest";
 
-const sendNotification = async (req: AuthRequest, userIds: string[], message: string, userType: string, notificationType: string,path?:string) => {
+type Data = {
+    _id: string,
+    title: string,
+    message: string,
+    sender: string,
+    userType: string,
+    notificationType: string,
+    path: string
+}
+
+const sendNotification = async (req: AuthRequest, data: Data) => {
     await axios.post(BACKEND_URL + '/message/notification/send-notification', {
-        userIds,
-        message,
-        userType,
-        notificationType,
-        path,
+        ...data
     },
         {
             headers: {
