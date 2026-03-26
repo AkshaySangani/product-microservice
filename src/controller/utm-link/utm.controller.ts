@@ -153,6 +153,7 @@ export const createShopifyUTMnew = async (data: any) => {
 
 export const createWordpressUTM = async (data: any) => {
   const {
+    shopUrl,
     token,
     productIdentifier,
     crmAffiliateId,
@@ -166,7 +167,7 @@ export const createWordpressUTM = async (data: any) => {
     };
 
     const response = await fetch(
-      `${WORDPRESS_URL}/wp-json/crm-integration/links/generate?token=${token}`,
+      `${shopUrl}/wp-json/crm-integration/links/generate?token=${token}`,
       {
         method: "POST",
         headers,

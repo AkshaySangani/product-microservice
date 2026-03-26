@@ -447,6 +447,7 @@ const activateCollaboration = async (req: AuthRequest, res: Response) => {
       });
     } else if (channel?.channelType === "wordpress") {
       crmLinkData = await createWordpressUTM({
+        shopUrl: channel?.channelConfig?.domain,
         token: channel?.channelConfig?.token,
         productIdentifier: collaboration.productId.channelProductId,
         crmAffiliateId: collaboration?._id,

@@ -605,6 +605,7 @@ const editProduct = async (req: AuthRequest, res: Response) => {
         for (const collaboration of collaborations) {
           try {
             const crmLinkData = await createWordpressUTM({
+              shopUrl: channel?.channelConfig?.domain,
               token: channel?.channelConfig?.token,
               productIdentifier: product.channelProductId,
               crmAffiliateId: collaboration?._id,
@@ -798,6 +799,7 @@ const generateDefaultUTMLink = async (
       });
     } else if (channel?.channelType === "wordpress") {
       crmLinkData = await createWordpressUTM({
+        shopUrl: channel?.channelConfig?.domain,
         token: channel?.channelConfig?.token,
         productIdentifier: product?.channelProductId,
         crmAffiliateId: collaboration?._id,
