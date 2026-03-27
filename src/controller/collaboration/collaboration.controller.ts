@@ -54,6 +54,9 @@ const requestStatusChange = async (req: AuthRequest, res: Response) => {
       await newBid.save();
       collaboration.bids.push(newBid._id);
     }
+    if (status === "rejected") {
+      collaboration.collaborationStatus = "REJECTED";
+    }
     sendNotification(
       req,
       {
@@ -63,7 +66,7 @@ const requestStatusChange = async (req: AuthRequest, res: Response) => {
         title: `Collaboration Request ${status}`,
         message: `Request ${status} by ${userRole === "creator" ? creator?.full_name : vendor?.business_name}`,
         userType: userRole === "creator" ? "vendor" : "creator",
-        sender: userRole !== "creator" ? "vendor" : "creator",
+        sender: String(userRole),
         notificationType: "collaboration",
         path: userRole === "creator" ? "/vendor/creators/collaboration/" : "/creator/collaboration/" + collaborationId
       });
