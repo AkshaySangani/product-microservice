@@ -271,7 +271,7 @@ const collaborationList = async (req: AuthRequest, res: Response) => {
       })
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit))
-      .sort({ createdAt: -1 });
+      .sort({ updatedAt: -1 });
 
     // 🔁 Wait for all lastMessage queries to resolve properly
     const collaborationListWithLastMessage = await Promise.all(
