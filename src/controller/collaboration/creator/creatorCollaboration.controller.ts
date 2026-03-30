@@ -241,8 +241,36 @@ const collaborationList = async (req: AuthRequest, res: Response) => {
   }
 };
 
+const creatorSeenCollaboration = async (req: AuthRequest, res: Response) => {
+  const { collaborationId } = req.params;
+  const { _id: creatorId } = req.user;
+
+  try {
+    const collaboration = await CollaborationModel.findOne({
+      _id: collaborationId,
+      creatorId,
+    });
+
+    if (!collaboration)
+      return sendApiResponse(res, 404, "Collaboration not found");
+
+    if (collaboration.seenByCreator)
+      return sendApiResponse(res, 400, "Collaboration already marked as seen");
+
+    collaboration.seenByCreator = true;
+    await collaboration.save();
+
+    return sendApiResponse(res, 200, "Collaboration marked as seen");
+  } catch (error: any) {
+    return sendApiResponse(res, 500, "Internal server error", {
+      error: error.message,
+    });
+  }
+}
+
 export {
   sendCollaborationRequestToVendor,
   cancelCollaborationRequestByCreator,
   collaborationList,
+  creatorSeenCollaboration
 };
