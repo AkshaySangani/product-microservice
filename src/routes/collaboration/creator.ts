@@ -9,6 +9,6 @@ router.delete('/cancel-request/:collaborationId', creatorAuthMiddleware, cancelC
 
 router.get('/list', creatorAuthMiddleware, collaborationList); // get collaboration list
 
-router.post('/seen', creatorAuthMiddleware, creatorSeenCollaboration); // mark collaboration as seen
+router.post('/seen/:collaborationId', creatorAuthMiddleware, creatorSeenCollaboration); // mark collaboration as seen
 
 export { router as creatorCollaborationRouter };
