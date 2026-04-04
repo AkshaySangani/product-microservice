@@ -86,3 +86,7 @@ public
 
 # TernJS port file
 .tern-port
+temp_auto_push.bat
+temp_interactive_push.bat
+.gitignore
+branch_structure.json

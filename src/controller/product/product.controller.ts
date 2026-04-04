@@ -133,7 +133,7 @@ export const updateProductStatus = async () => {
                 productId: _id,
                 vendorId: { $in: Array.from(validVendorIds) },
                 creatorId: { $in: Array.from(validCreatorIds) },
-                collaborationStatus: { $ne: collaborationStatus },
+                collaborationStatus: { $nin: [collaborationStatus, "REJECTED", "DEACTIVATED"] },
               },
               update: { $set: { collaborationStatus } },
             },
@@ -233,10 +233,10 @@ const getProducts = async (req: AuthRequest, res: Response) => {
           }),
           ...(category &&
             !subCategory && {
-              "product.category._id": new mongoose.Types.ObjectId(
-                category as string
-              ),
-            }),
+            "product.category._id": new mongoose.Types.ObjectId(
+              category as string
+            ),
+          }),
           ...(subCategory && {
             "product.subCategory._id": new mongoose.Types.ObjectId(
               subCategory as string
