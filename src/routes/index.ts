@@ -6,7 +6,6 @@ import { creatorProductRouter } from './creatorProduct';
 import { brandProductRouter } from './brandProduct';
 import { collaborationRouter } from './collaboration/collabration';
 import { utmRouter } from './utm';
-import { campaignRouter } from './campaign';
 import { updateCollaborationCrmLink } from '../controller/collaboration/collaboration.controller';
 import { wishListRouter } from './wishList';
 import { analyticsRouter } from './analytics';
@@ -30,8 +29,6 @@ router.use('/vendor-product', brandProductRouter)
 router.use('/collaboration', collaborationRouter)
 
 router.use('/utm', utmRouter)
-
-router.use('/campaign', campaignRouter)
 
 router.put('/generate-crm/:collaborationId', updateCollaborationCrmLink)
 

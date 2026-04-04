@@ -2,13 +2,11 @@ import mongoose from "mongoose";
 import ProductSchema from "../../../../shared-models/src/models/product";
 import CategorySchema from "../../../../shared-models/src/models/category";
 import TagsSchema from "../../../../shared-models/src/models/tags";
-import VendorProductSchema from "../../../../shared-models/src/models/vendorProduct";
 import CreatorSchema from "../../../../shared-models/src/models/creator";
 import VendorSchema from "../../../../shared-models/src/models/vendor";
 import AccountSchema from "../../../../shared-models/src/models/account";
 import CollaborationSchema from "../../../../shared-models/src/models/collaboration";
 import ChannelSchema from "../../../../shared-models/src/models/channel";
-import CampaignSchema from "../../../../shared-models/src/models/campaign";
 import WishListSchema from "../../../../shared-models/src/models/wishList";
 import {biddingSchema} from "../../../../shared-models/src/models/collaboration";
 import PlanSchema from "../../../../shared-models/src/models/plan"; 
@@ -20,13 +18,11 @@ import CategoryMappingSchema from "../../../../shared-models/src/models/category
 const ProductModel = mongoose.model("Product", ProductSchema);
 const CategoryModel = mongoose.model("Category", CategorySchema);
 const TagsModel = mongoose.model("Tags", TagsSchema);
-const VendorProductModel = mongoose.model("VendorProduct", VendorProductSchema);
 const VendorModel = mongoose.model("Vendor", VendorSchema);
 const CreatorModel = mongoose.model("Creator", CreatorSchema);
 const AccountModel = mongoose.model("Account", AccountSchema);
 const CollaborationModel = mongoose.model("Collaboration", CollaborationSchema);
 const ChannelModel = mongoose.model("Channel", ChannelSchema);
-const CampaignModel = mongoose.model("Campaign", CampaignSchema);
 const WishListModel = mongoose.model("WishList", WishListSchema);
 const BidModel = mongoose.model("Bidding", biddingSchema);
 const PlanModel = mongoose.model("Plan", PlanSchema);
@@ -39,13 +35,11 @@ export {
     ProductModel,
     CategoryModel,
     TagsModel,
-    VendorProductModel,
     VendorModel,
     CreatorModel,
     AccountModel,
     CollaborationModel,
     ChannelModel,
-    CampaignModel,
     WishListModel,
     BidModel,
     PlanModel,

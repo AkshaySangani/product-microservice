@@ -2,7 +2,6 @@ import { Request, Response } from "express";
 import sendApiResponse from "../../common";
 import {
   AccountModel,
-  CampaignModel,
   CategoryModel,
   CollaborationModel,
   CreatorModel,
@@ -10,7 +9,6 @@ import {
   VendorModel,
   WishListModel,
 } from "../../database/model";
-import { VendorProductModel } from "../../database/model";
 import { AuthRequest } from "../../types/authRequest";
 import mongoose from "mongoose";
 
