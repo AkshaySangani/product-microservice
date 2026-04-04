@@ -73,7 +73,7 @@ const productSearchResultsForCreator = async (
     category,
     subCategory,
   } = req.query;
-  const searchRegex = new RegExp(search as string, "i");
+
   const pageNumber = Number(page);
   const limitNumber = Number(limit);
   const skip = (pageNumber - 1) * limitNumber;
@@ -96,31 +96,48 @@ const productSearchResultsForCreator = async (
     const baseCondition: any = { status: "ACTIVE" };
 
     // Add search conditions
+    const andConditions = [];
+
+    // 1. Handle Search (Title OR Tags)
     if (search) {
-      baseCondition.$or = [
-        { title: { $regex: searchRegex } },
-        { tags: { $in: [searchRegex] } },
-      ];
+      const searchRegex = new RegExp(search as string, 'i');
+      andConditions.push({
+        $or: [
+          { title: { $regex: searchRegex } },
+          { tags: { $in: [searchRegex] } },
+        ]
+      });
     }
 
-    if (vendorId) baseCondition.vendorId = vendorId;
+    // 2. Handle Vendor Filter
+    if (vendorId) {
+      andConditions.push({ vendorId: vendorId });
+    }
 
+    // 3. Handle Category (Category OR SubCategory)
     if (category) {
       const categoryArray = Array.isArray(category) ? category : [category];
-      const subCategoryArray = Array.isArray(category) ? category : [category];
-
-      baseCondition.$or = [
-        { category: { $in: categoryArray } },
-        { subCategory: { $in: subCategoryArray } },
-      ];
+      // Note: Usually subCategory is a different field, 
+      // but keeping your logic of checking both.
+      andConditions.push({
+        $or: [
+          { category: { $in: categoryArray } },
+          { subCategory: { $in: categoryArray } },
+        ]
+      });
     }
 
-    if (subCategory) {
-      const subCategoryArray = Array.isArray(subCategory)
-        ? subCategory
-        : [subCategory];
-      baseCondition.subCategory = { $in: subCategoryArray };
+    // 4. Final Query Construction
+    if (andConditions.length > 0) {
+      baseCondition.$and = andConditions;
     }
+
+    // if (subCategory) {
+    //   const subCategoryArray = Array.isArray(subCategory)
+    //     ? subCategory
+    //     : [subCategory];
+    //   baseCondition.subCategory = { $in: subCategoryArray };
+    // }
 
     let finalProductList: any[] = [];
     let productCount = 0;

@@ -178,32 +178,41 @@ const brandProductList = async (req: AuthRequest, res: Response) => {
     // Build product query filter
     let productFilter: any = { vendorId: brandId };
 
-    // Apply search filter to title or tags
+    const andConditions: any[] = [];
+
+    // 1. Handle Search (Title OR Tags)
     if (search) {
-      productFilter.$or = [
-        { title: { $regex: search as string, $options: "i" } },
-        { tags: { $in: [new RegExp(search as string, "i")] } },
-      ];
+      const searchRegex = new RegExp(search as string, "i");
+      andConditions.push({
+        $or: [
+          { title: { $regex: searchRegex } },
+          { tags: { $in: [searchRegex] } },
+        ],
+      });
     }
 
-    // Apply category filter
+    // 2. Handle Category (Category OR SubCategory)
     if (categories) {
-      const categoryArray =
-        typeof categories === "string"
-          ? categories.split(",").map((id) => id.trim())
-          : [];
+      const categoryArray = typeof categories === "string"
+        ? categories.split(",").map((id) => id.trim())
+        : [];
 
       if (categoryArray.length > 0) {
-        // ✅ Cast to ObjectIds
-        const objectIds = categoryArray.map(
-          (id) => new mongoose.Types.ObjectId(id)
-        );
-        // ✅ Match either category OR subCategory
-        productFilter.$or = [
-          { category: { $in: objectIds } },
-          { subCategory: { $in: objectIds } },
-        ];
+        const objectIds = categoryArray.map((id) => new mongoose.Types.ObjectId(id));
+
+        // We use $or here because a product can be in the category OR the subCategory
+        andConditions.push({
+          $or: [
+            { category: { $in: objectIds } },
+            { subCategory: { $in: objectIds } },
+          ],
+        });
       }
+    }
+
+    // 4. Final Build: Only use $and if there are multiple conditions
+    if (andConditions.length > 0) {
+      productFilter.$and = andConditions;
     }
 
     // Query builder
