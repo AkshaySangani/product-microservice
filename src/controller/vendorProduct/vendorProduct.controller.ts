@@ -361,10 +361,10 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
         }
       }
 
-      const media: { original: string, compressed: string }[] = await Promise.all([
+      const media: { original: string, compressed: string }[] = await Promise.all(
         productData.images?.map((i: any) => optimizeAndUploadImage(i?.src, `vendor/${vendorId}/products/`))
-      ]);
-console.log("media", media)
+      );
+
       // Merge product data
       const fullProduct = {
         ...value,
@@ -447,10 +447,10 @@ console.log("media", media)
       if (value.startDate && now >= new Date(value.startDate))
         status = "ACTIVE";
 
-      const media: { original: string, compressed: string }[] = await Promise.all([
+      const media: { original: string, compressed: string }[] = await Promise.all(
         productData.images?.map((i: any) => optimizeAndUploadImage(i, `vendor/${vendorId}/products/`))
-      ]);
- console.log("media", media)
+      );
+
       // Merge product data
       const fullProduct = {
         ...value,
