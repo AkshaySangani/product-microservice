@@ -364,7 +364,7 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
       const media: { original: string, compressed: string }[] = await Promise.all([
         productData.images?.map((i: any) => optimizeAndUploadImage(i?.src, `vendor/${vendorId}/products/`))
       ]);
-
+console.log("media", media)
       // Merge product data
       const fullProduct = {
         ...value,

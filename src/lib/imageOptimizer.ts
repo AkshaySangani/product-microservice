@@ -66,7 +66,7 @@ export const optimizeAndUploadImage = async (
 
     // Generate S3 URL
     const compressedUrl = `https://${BUCKET}.s3.${AWS_REGION}.amazonaws.com/${key}`;
-
+console.log("com",compressedUrl)
     return {
       original: imageUrl,
       compressed: compressedUrl,
