@@ -2,7 +2,7 @@ import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client
 import { AWS_ACCESS_KEY_ID, AWS_REGION, AWS_S3_BUCKET_NAME, AWS_SECRET_ACCESS_KEY } from '../../config';
 
 // Initialize the S3 client using credentials and region from environment variables
-const s3 = new S3Client({
+export const s3 = new S3Client({
   region: AWS_REGION!, // Example: 'us-east-1'
   credentials: {
     accessKeyId: AWS_ACCESS_KEY_ID!,

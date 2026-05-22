@@ -11,6 +11,6 @@
     "resolveJsonModule": true,
     "moduleResolution": "node"
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/lib/script/makeImageCompressed.ts"],
   "exclude": ["node_modules"]
 }

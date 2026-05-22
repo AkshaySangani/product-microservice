@@ -19,6 +19,7 @@ import {
   shopifyCouponUpdate,
   shopifyUpdateDiscount,
 } from "../utm-link/utm.controller";
+import { optimizeAndUploadImage } from "../../lib/imageOptimizer";
 
 const getVendorList = async (req: Request, res: Response) => {
   try {
@@ -360,7 +361,10 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
         }
       }
 
-      console.log("value , ", value.blockedDays);
+      const media: { original: string, compressed: string }[] = await Promise.all([
+        productData.images?.map((i: any) => optimizeAndUploadImage(i?.src, `vendor/${vendorId}/products/`))
+      ]);
+
       // Merge product data
       const fullProduct = {
         ...value,
@@ -370,7 +374,8 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
         price: productData.variants[0].price,
         sku: productData.handle,
         description: productData.description || "",
-        media: productData.images?.map((item: any) => item?.src) || [],
+        originalMedia: media?.map((item: any) => item?.original) || [],
+        media: media?.map((item: any) => item?.compressed) || [],
         channelName,
         channelProductType: productData.productType,
         channelProductVendor: productData.vendor,
