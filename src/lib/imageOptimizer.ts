@@ -20,6 +20,7 @@ export const optimizeAndUploadImage = async (
   path: string,
 ): Promise<OptimizeImageResponse> => {
   try {
+    console.log("0", imageUrl, path)
     // Download original image
     const response = await axios.get(imageUrl, {
       responseType: "arraybuffer",
