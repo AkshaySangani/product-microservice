@@ -447,6 +447,10 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
       if (value.startDate && now >= new Date(value.startDate))
         status = "ACTIVE";
 
+      const media: { original: string, compressed: string }[] = await Promise.all([
+        productData.images?.map((i: any) => optimizeAndUploadImage(i, `vendor/${vendorId}/products/`))
+      ]);
+
       // Merge product data
       const fullProduct = {
         ...value,
@@ -456,7 +460,8 @@ const addNewProduct = async (req: AuthRequest, res: Response) => {
         price: productData.price,
         sku: productData.slug,
         description: productData.description || "",
-        media: productData.images,
+        media: media?.map((item: any) => item?.compressed) || [],
+        originalMedia: media?.map((item: any) => item?.original) || [],
         channelName,
         channelProductType: productData.type,
         variantLabel: productData.variations?.slice(0, 1)?.map((ele: any) => {

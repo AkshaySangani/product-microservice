@@ -56,7 +56,7 @@ export const optimizeAndUploadImage = async (
     // Upload compressed image to S3
     await s3.send(
       new PutObjectCommand({
-        Bucket: process.env.AWS_BUCKET_NAME!,
+        Bucket: BUCKET!,
         Key: key,
         Body: compressedBuffer,
         ContentType: "image/webp",
@@ -64,7 +64,7 @@ export const optimizeAndUploadImage = async (
     );
 
     // Generate S3 URL
-    const compressedUrl = `https://${BUCKET}.s3.${AWS_REGION}.amazonaws.com/{key}`;
+    const compressedUrl = `https://${BUCKET}.s3.${AWS_REGION}.amazonaws.com/${key}`;
 
     return {
       original: imageUrl,
