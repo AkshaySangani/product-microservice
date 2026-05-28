@@ -69,7 +69,7 @@ const sendCollaborationRequestToVendor = async (
     sendNotification(
       req,
       {
-        _id: creatorId,
+        _id: vendorId,
         title: "New Collaboration Request",
         message: `Request from ${creator.full_name} for product ${vendorProduct?.title}`,
         sender: "creator",
